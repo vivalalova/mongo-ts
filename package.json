@@ -1,5 +1,5 @@
 {
-  "name": "mongo-ts",
+  "name": "@lova/mongo-ts",
   "version": "1.0.0",
   "description": "MongoDB CLI Tool",
   "type": "module",
