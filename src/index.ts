@@ -4,7 +4,6 @@ import { mongoClient } from './lib/client.js';
 import { executeQuery } from './lib/executor.js';
 import { formatOutput } from './lib/formatters/index.js';
 import { logger, setLogMode } from './utils/logger.js';
-import { startShell } from './shell.js';
 import type { GlobalOptions, OutputFormat } from './types/index.js';
 
 const program = new Command();
@@ -66,14 +65,14 @@ async function main(cliOpts: Record<string, unknown>): Promise<void> {
 
   const query = cliOpts['query'] as string | undefined;
 
-  if (query) {
-    // 執行單一查詢
-    await executeAndPrint(query, options);
-    await mongoClient.close();
-  } else {
-    // 進入互動式 Shell
-    await startShell(options);
+  if (!query) {
+    logger.error('Missing query. Use -q option to specify a query.');
+    process.exit(1);
   }
+
+  // 執行查詢
+  await executeAndPrint(query, options);
+  await mongoClient.close();
 }
 
 /**
