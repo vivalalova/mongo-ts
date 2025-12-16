@@ -9,7 +9,7 @@
 - **Runtime**: Node.js 20+ / TypeScript 5.6+
 - **CLI 框架**: Commander.js v14
 - **MongoDB**: mongodb v7 官方驅動
-- **輸出格式化**: chalk, cli-table3, yaml
+- **輸出格式化**: chalk, yaml（Table 輸出為 Markdown 格式）
 
 ## 專案結構
 
@@ -70,7 +70,7 @@ mongots shell
 | `-u, --uri <uri>` | MongoDB 連線字串 |
 | `-d, --db <database>` | 指定資料庫 |
 | `-f, --format <type>` | 輸出格式：table/json/csv/yaml |
-| `--readonly` | 唯讀模式，禁止寫入操作 |
+| `--allow-write` | 允許寫入操作（預設為唯讀）|
 | `--quiet` | 靜默模式，只輸出資料 |
 | `--verbose` | 詳細模式 |
 
@@ -90,21 +90,21 @@ mongots shell
   "uri": "mongodb://localhost:27017",
   "defaultDb": "test",
   "format": "table",
-  "readonly": false
+  "allowWrite": false
 }
 ```
 
 優先順序：CLI 選項 > 環境變數 > 設定檔 > 預設值
 
-## Readonly 模式
+## 唯讀模式（預設）
 
-啟用 `--readonly` 時，僅允許執行讀取操作：
+預設為唯讀模式，使用 `--allow-write` 啟用寫入操作。
 
-**允許**：find, findOne, countDocuments, aggregate, getIndexes, stats, show
+**唯讀允許**：find, findOne, countDocuments, aggregate, getIndexes, stats, show
 
-**禁止**：insert*, update*, delete*, drop*, createIndex
+**需要 `--allow-write`**：insert*, update*, delete*, drop*, createIndex
 
 ## 注意事項
 
 - 連線字串含密碼時，避免記錄到日誌
-- 生產環境建議啟用 `--readonly` 模式
+- 預設為唯讀模式，保護生產環境
