@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getConfigPath, isValidFormat, loadConfig, saveConfig } from './config.js';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import { logger } from '../utils/logger.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -11,6 +12,15 @@ vi.mock('fs', () => ({
 
 vi.mock('dotenv', () => ({
   config: vi.fn(),
+}));
+
+vi.mock('../utils/logger.js', () => ({
+  logger: {
+    warn: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 describe('getConfigPath', () => {
@@ -45,6 +55,13 @@ describe('loadConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+    // 清除可能影響測試的環境變數
+    delete process.env['MONGO_URI'];
+    delete process.env['MONGO_DB'];
+    delete process.env['MONGO_TS_URI'];
+    delete process.env['MONGO_TS_DB'];
+    delete process.env['MONGO_TS_FORMAT'];
+    delete process.env['MONGO_TS_ALLOW_WRITE'];
   });
 
   afterEach(() => {
@@ -214,6 +231,52 @@ describe('loadConfig', () => {
       defaultDb: 'filedb',
       format: 'csv',
       allowWrite: true,
+    });
+  });
+
+  describe('deprecated environment variables', () => {
+    it('warns and uses MONGO_URI when MONGO_TS_URI is not set', () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+      delete process.env['MONGO_TS_URI'];
+      process.env['MONGO_URI'] = 'mongodb://deprecated:27017';
+
+      const config = loadConfig();
+
+      expect(logger.warn).toHaveBeenCalledWith('MONGO_URI 已棄用，請改用 MONGO_TS_URI');
+      expect(config.uri).toBe('mongodb://deprecated:27017');
+    });
+
+    it('warns and uses MONGO_DB when MONGO_TS_DB is not set', () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+      delete process.env['MONGO_TS_DB'];
+      process.env['MONGO_DB'] = 'deprecateddb';
+
+      const config = loadConfig();
+
+      expect(logger.warn).toHaveBeenCalledWith('MONGO_DB 已棄用，請改用 MONGO_TS_DB');
+      expect(config.defaultDb).toBe('deprecateddb');
+    });
+
+    it('prefers MONGO_TS_URI over deprecated MONGO_URI', () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+      process.env['MONGO_URI'] = 'mongodb://deprecated:27017';
+      process.env['MONGO_TS_URI'] = 'mongodb://new:27017';
+
+      const config = loadConfig();
+
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(config.uri).toBe('mongodb://new:27017');
+    });
+
+    it('prefers MONGO_TS_DB over deprecated MONGO_DB', () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+      process.env['MONGO_DB'] = 'deprecateddb';
+      process.env['MONGO_TS_DB'] = 'newdb';
+
+      const config = loadConfig();
+
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(config.defaultDb).toBe('newdb');
     });
   });
 });

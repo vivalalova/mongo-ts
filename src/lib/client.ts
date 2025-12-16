@@ -58,8 +58,8 @@ class MongoClientManager {
       if (pathname && pathname.length > 1) {
         return pathname.slice(1); // 移除開頭的 /
       }
-    } catch {
-      // 解析失敗，忽略
+    } catch (error) {
+      logger.debug(`Failed to parse database from URI: ${error}`);
     }
     return null;
   }
