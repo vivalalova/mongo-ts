@@ -3,16 +3,14 @@ import { formatYaml } from './yaml.js';
 
 describe('formatYaml', () => {
   it('returns empty string for empty array', () => {
-    const result = formatYaml([]);
-    expect(result).toBe('');
+    expect(formatYaml([])).toBe('');
   });
 
   it('formats single document', () => {
     const docs = [{ _id: '123', name: 'test' }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('_id: "123"');
-    expect(result).toContain('name: test');
+    expect(result).toBe('_id: "123"\nname: test\n');
   });
 
   it('formats multiple documents as array', () => {
@@ -22,18 +20,14 @@ describe('formatYaml', () => {
     ];
     const result = formatYaml(docs);
 
-    expect(result).toContain('- _id:');
-    expect(result).toContain('Alice');
-    expect(result).toContain('Bob');
+    expect(result).toBe('- _id: "1"\n  name: Alice\n- _id: "2"\n  name: Bob\n');
   });
 
   it('handles nested objects', () => {
     const docs = [{ meta: { nested: { deep: 'value' } } }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('meta:');
-    expect(result).toContain('nested:');
-    expect(result).toContain('deep: value');
+    expect(result).toBe('meta:\n  nested:\n    deep: value\n');
   });
 
   it('handles Date objects', () => {
@@ -41,39 +35,64 @@ describe('formatYaml', () => {
     const docs = [{ created: date }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('2024-01-01');
+    // Date is converted to ISO string without quotes in YAML
+    expect(result).toBe('created: 2024-01-01T00:00:00.000Z\n');
   });
 
   it('handles null values', () => {
     const docs = [{ value: null }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('null');
+    expect(result).toBe('value: null\n');
   });
 
   it('handles arrays', () => {
     const docs = [{ tags: ['a', 'b', 'c'] }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('tags:');
-    expect(result).toContain('- a');
-    expect(result).toContain('- b');
-    expect(result).toContain('- c');
+    expect(result).toBe('tags:\n  - a\n  - b\n  - c\n');
   });
 
   it('handles numbers', () => {
     const docs = [{ count: 42, price: 19.99 }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('count: 42');
-    expect(result).toContain('price: 19.99');
+    expect(result).toBe('count: 42\nprice: 19.99\n');
   });
 
   it('handles boolean values', () => {
     const docs = [{ active: true, deleted: false }];
     const result = formatYaml(docs);
 
-    expect(result).toContain('active: true');
-    expect(result).toContain('deleted: false');
+    expect(result).toBe('active: true\ndeleted: false\n');
+  });
+
+  it('handles empty object', () => {
+    const docs = [{}];
+    const result = formatYaml(docs);
+
+    expect(result).toBe('{}\n');
+  });
+
+  it('handles complex nested structure', () => {
+    const docs = [{
+      _id: '1',
+      user: {
+        name: 'Alice',
+        profile: {
+          age: 30,
+        },
+      },
+    }];
+    const result = formatYaml(docs);
+
+    expect(result).toBe('_id: "1"\nuser:\n  name: Alice\n  profile:\n    age: 30\n');
+  });
+
+  it('handles string with special characters', () => {
+    const docs = [{ message: 'Hello: World' }];
+    const result = formatYaml(docs);
+
+    expect(result).toBe('message: "Hello: World"\n');
   });
 });

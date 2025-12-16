@@ -77,46 +77,64 @@ describe('executeQuery', () => {
   describe('read operations', () => {
     it('executes find', async () => {
       const result = await executeQuery('db.users.find()');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: [],
+      });
       expect(mockCollection.find).toHaveBeenCalled();
     });
 
     it('executes findOne', async () => {
       mockCollection.findOne.mockResolvedValueOnce({ _id: '1', name: 'test' });
       const result = await executeQuery('db.users.findOne({name: "test"})');
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({ _id: '1', name: 'test' });
+      expect(result).toEqual({
+        success: true,
+        data: { _id: '1', name: 'test' },
+      });
     });
 
     it('returns message when findOne finds nothing', async () => {
       mockCollection.findOne.mockResolvedValueOnce(null);
       const result = await executeQuery('db.users.findOne({name: "notfound"})');
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({ _message: 'No document found' });
+      expect(result).toEqual({
+        success: true,
+        data: { _message: 'No document found' },
+      });
     });
 
     it('executes countDocuments', async () => {
       mockCollection.countDocuments.mockResolvedValueOnce(10);
       const result = await executeQuery('db.users.countDocuments({})');
-      expect(result.success).toBe(true);
-      expect(result.data).toBe(10);
+      expect(result).toEqual({
+        success: true,
+        data: 10,
+      });
     });
 
     it('executes aggregate', async () => {
       const result = await executeQuery('db.orders.aggregate([{$group: {_id: "$status"}}])');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: [],
+      });
       expect(mockCollection.aggregate).toHaveBeenCalled();
     });
 
     it('executes getIndexes', async () => {
       const result = await executeQuery('db.users.getIndexes()');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: [],
+      });
       expect(mockCollection.indexes).toHaveBeenCalled();
     });
 
     it('executes stats', async () => {
       const result = await executeQuery('db.users.stats()');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: { ns: 'test.users' },
+      });
       expect(mockDb.command).toHaveBeenCalledWith({ collStats: 'users' });
     });
   });
@@ -124,79 +142,138 @@ describe('executeQuery', () => {
   describe('write operations', () => {
     it('executes insertOne', async () => {
       const result = await executeQuery('db.users.insertOne({name: "test"})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('insertedId');
+      expect(result).toEqual({
+        success: true,
+        data: { insertedId: '123', acknowledged: true },
+      });
     });
 
     it('executes insertMany', async () => {
       const result = await executeQuery('db.users.insertMany([{name: "a"}, {name: "b"}])');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('insertedCount');
+      expect(result).toEqual({
+        success: true,
+        data: { insertedCount: 2, insertedIds: {}, acknowledged: true },
+      });
     });
 
     it('executes updateOne', async () => {
       const result = await executeQuery('db.users.updateOne({name: "test"}, {$set: {age: 30}})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('modifiedCount');
+      expect(result).toEqual({
+        success: true,
+        data: { matchedCount: 1, modifiedCount: 1, acknowledged: true },
+      });
     });
 
     it('executes updateMany', async () => {
       const result = await executeQuery('db.users.updateMany({active: true}, {$set: {status: "active"}})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('modifiedCount');
+      expect(result).toEqual({
+        success: true,
+        data: { matchedCount: 2, modifiedCount: 2, acknowledged: true },
+      });
     });
 
     it('executes replaceOne', async () => {
       const result = await executeQuery('db.users.replaceOne({_id: "1"}, {name: "new"})');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: { matchedCount: 1, modifiedCount: 1, acknowledged: true },
+      });
     });
 
     it('executes deleteOne', async () => {
       const result = await executeQuery('db.users.deleteOne({name: "test"})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('deletedCount');
+      expect(result).toEqual({
+        success: true,
+        data: { deletedCount: 1, acknowledged: true },
+      });
     });
 
     it('executes deleteMany', async () => {
       const result = await executeQuery('db.users.deleteMany({active: false})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('deletedCount');
+      expect(result).toEqual({
+        success: true,
+        data: { deletedCount: 5, acknowledged: true },
+      });
     });
 
     it('executes drop', async () => {
       const result = await executeQuery('db.users.drop()');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('dropped');
+      expect(result).toEqual({
+        success: true,
+        data: { dropped: true },
+      });
     });
 
     it('executes createIndex', async () => {
       const result = await executeQuery('db.users.createIndex({email: 1})');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('indexName');
+      expect(result).toEqual({
+        success: true,
+        data: { indexName: 'index_1' },
+      });
     });
 
     it('executes dropIndex', async () => {
       const result = await executeQuery('db.users.dropIndex("email_1")');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: { dropped: true },
+      });
     });
 
     it('executes dropIndexes', async () => {
       const result = await executeQuery('db.users.dropIndexes()');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: { dropped: true },
+      });
     });
   });
 
   describe('admin operations', () => {
     it('executes show dbs', async () => {
       const result = await executeQuery('show dbs');
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: true,
+        data: [{ name: 'test' }],
+      });
       expect(mockAdmin.listDatabases).toHaveBeenCalled();
     });
 
     it('executes use database', async () => {
       const result = await executeQuery('use mydb');
-      expect(result.success).toBe(true);
-      expect(result.data).toBe('switched to db mydb');
+      expect(result).toEqual({
+        success: true,
+        data: 'switched to db mydb',
+      });
+    });
+
+    it('executes show collections', async () => {
+      mockDb.listCollections.mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([{ name: 'users' }, { name: 'orders' }]),
+      });
+      const result = await executeQuery('show collections');
+      expect(result).toEqual({
+        success: true,
+        data: [{ name: 'users' }, { name: 'orders' }],
+      });
+    });
+
+    it('executes db.stats()', async () => {
+      const result = await executeQuery('db.stats()');
+      expect(result).toEqual({
+        success: true,
+        data: { db: 'test', collections: 5 },
+      });
+      expect(mockDb.stats).toHaveBeenCalled();
+    });
+
+    it('executes db.dropDatabase()', async () => {
+      const result = await executeQuery('db.dropDatabase()');
+      expect(result).toEqual({
+        success: true,
+        data: { dropped: true },
+      });
+      expect(mockDb.dropDatabase).toHaveBeenCalled();
     });
   });
 

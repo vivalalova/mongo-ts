@@ -7,8 +7,8 @@ describe('parseQuery', () => {
       { input: 'show dbs', method: 'listDatabases', type: 'admin' },
       { input: 'show databases', method: 'listDatabases', type: 'admin' },
       { input: 'SHOW DBS', method: 'listDatabases', type: 'admin' },
-      { input: 'show collections', method: 'listCollections', type: 'read' },
-      { input: 'show tables', method: 'listCollections', type: 'read' },
+      { input: 'show collections', method: 'listCollections', type: 'admin' },
+      { input: 'show tables', method: 'listCollections', type: 'admin' },
     ])('parses "$input" correctly', ({ input, method, type }) => {
       const result = parseQuery(input);
       expect(result.method).toBe(method);
@@ -39,19 +39,19 @@ describe('parseQuery', () => {
   describe('db methods', () => {
     it('parses db.stats()', () => {
       const result = parseQuery('db.stats()');
-      expect(result.type).toBe('read');
+      expect(result.type).toBe('admin');
       expect(result.method).toBe('dbStats');
     });
 
     it('parses db.dropDatabase()', () => {
       const result = parseQuery('db.dropDatabase()');
-      expect(result.type).toBe('write');
+      expect(result.type).toBe('admin');
       expect(result.method).toBe('dropDatabase');
     });
 
     it('parses db.getCollectionNames()', () => {
       const result = parseQuery('db.getCollectionNames()');
-      expect(result.type).toBe('read');
+      expect(result.type).toBe('admin');
       expect(result.method).toBe('listCollections');
     });
   });
