@@ -35,7 +35,32 @@ class MongoClientManager {
     await this.client.connect();
     logger.debug('Connected successfully');
 
+    // 從 URI 解析資料庫名稱
+    const dbFromUri = this.parseDbFromUri(uri);
+    if (dbFromUri) {
+      this.currentDbName = dbFromUri;
+      logger.debug(`Database from URI: ${dbFromUri}`);
+    }
+
     return this.client;
+  }
+
+  /**
+   * 從 URI 解析資料庫名稱
+   * @param uri - MongoDB 連線字串
+   */
+  private parseDbFromUri(uri: string): string | null {
+    try {
+      // mongodb://user:pass@host:port/database?options
+      const url = new URL(uri);
+      const pathname = url.pathname;
+      if (pathname && pathname.length > 1) {
+        return pathname.slice(1); // 移除開頭的 /
+      }
+    } catch {
+      // 解析失敗，忽略
+    }
+    return null;
   }
 
   /**
