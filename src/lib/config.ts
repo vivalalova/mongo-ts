@@ -39,11 +39,20 @@ export function loadConfig(customPath?: string): Config {
 
   // 環境變數（只包含有值的設定，避免 undefined 覆蓋檔案設定）
   const envConfig: Config = {};
-  if (process.env['MONGO_URI']) {
-    envConfig.uri = process.env['MONGO_URI'];
+  if (process.env['MONGO_TS_URI']) {
+    envConfig.uri = process.env['MONGO_TS_URI'];
   }
-  if (process.env['MONGO_DB']) {
-    envConfig.defaultDb = process.env['MONGO_DB'];
+  if (process.env['MONGO_TS_DB']) {
+    envConfig.defaultDb = process.env['MONGO_TS_DB'];
+  }
+  if (process.env['MONGO_TS_FORMAT']) {
+    const format = process.env['MONGO_TS_FORMAT'];
+    if (isValidFormat(format)) {
+      envConfig.format = format;
+    }
+  }
+  if (process.env['MONGO_TS_ALLOW_WRITE'] === 'true') {
+    envConfig.allowWrite = true;
   }
 
   // 合併設定（環境變數優先於設定檔）

@@ -16,7 +16,6 @@
 ```text
 src/
 ├── index.ts                    # CLI 主入口
-├── shell.ts                    # 互動式 Shell
 ├── lib/
 │   ├── client.ts               # MongoDB 客戶端單例
 │   ├── config.ts               # 設定檔管理
@@ -56,10 +55,6 @@ mongots -q "db.users.insertOne({name: 'test'})"
 # 管理操作
 mongots -q "show dbs"
 mongots -q "show collections"
-
-# 互動式 Shell
-mongots
-mongots shell
 ```
 
 ## CLI 選項
@@ -78,8 +73,10 @@ mongots shell
 
 | 變數 | 說明 |
 |------|------|
-| `MONGO_URI` | MongoDB 連線字串 |
-| `MONGO_DB` | 預設資料庫 |
+| `MONGO_TS_URI` | MongoDB 連線字串 |
+| `MONGO_TS_DB` | 預設資料庫（覆蓋 URI 中的 database）|
+| `MONGO_TS_FORMAT` | 輸出格式：table/json/csv/yaml |
+| `MONGO_TS_ALLOW_WRITE` | 允許寫入（`true` 啟用）|
 
 ## 設定檔
 

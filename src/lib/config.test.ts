@@ -30,6 +30,10 @@ describe('isValidFormat', () => {
     { format: 'invalid', expected: false },
     { format: 'TABLE', expected: false },
     { format: '', expected: false },
+    { format: ' ', expected: false },
+    { format: 'json ', expected: false },
+    { format: ' table', expected: false },
+    { format: 'XML', expected: false },
   ])('isValidFormat("$format") returns $expected', ({ format, expected }) => {
     expect(isValidFormat(format)).toBe(expected);
   });
@@ -66,8 +70,8 @@ describe('loadConfig', () => {
       format: 'json',
     }));
     // Clear env vars that would override file config
-    delete process.env['MONGO_URI'];
-    delete process.env['MONGO_DB'];
+    delete process.env['MONGO_TS_URI'];
+    delete process.env['MONGO_TS_DB'];
 
     const config = loadConfig();
 
@@ -83,13 +87,49 @@ describe('loadConfig', () => {
       uri: 'mongodb://file:27017',
       defaultDb: 'filedb',
     }));
-    process.env['MONGO_URI'] = 'mongodb://env:27017';
-    process.env['MONGO_DB'] = 'envdb';
+    process.env['MONGO_TS_URI'] = 'mongodb://env:27017';
+    process.env['MONGO_TS_DB'] = 'envdb';
 
     const config = loadConfig();
 
     expect(config.uri).toBe('mongodb://env:27017');
     expect(config.defaultDb).toBe('envdb');
+  });
+
+  it('loads MONGO_TS_FORMAT from environment variable', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_FORMAT'] = 'json';
+
+    const config = loadConfig();
+
+    expect(config.format).toBe('json');
+  });
+
+  it('ignores invalid MONGO_TS_FORMAT', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_FORMAT'] = 'invalid';
+
+    const config = loadConfig();
+
+    expect(config.format).toBe('table');
+  });
+
+  it('loads MONGO_TS_ALLOW_WRITE from environment variable', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_ALLOW_WRITE'] = 'true';
+
+    const config = loadConfig();
+
+    expect(config.allowWrite).toBe(true);
+  });
+
+  it('ignores MONGO_TS_ALLOW_WRITE when not "true"', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_ALLOW_WRITE'] = 'false';
+
+    const config = loadConfig();
+
+    expect(config.allowWrite).toBe(false);
   });
 
   it('handles invalid JSON in config file', () => {
@@ -113,6 +153,68 @@ describe('loadConfig', () => {
     loadConfig('/custom/path/config.json');
 
     expect(existsSync).toHaveBeenCalledWith('/custom/path/config.json');
+  });
+
+  it('ignores empty string environment variables', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      uri: 'mongodb://file:27017',
+      defaultDb: 'filedb',
+    }));
+    process.env['MONGO_TS_URI'] = '';
+    process.env['MONGO_TS_DB'] = '';
+
+    const config = loadConfig();
+
+    expect(config.uri).toBe('mongodb://file:27017');
+    expect(config.defaultDb).toBe('filedb');
+  });
+
+  it('loads allowWrite from file config', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      allowWrite: true,
+    }));
+    delete process.env['MONGO_TS_ALLOW_WRITE'];
+
+    const config = loadConfig();
+
+    expect(config.allowWrite).toBe(true);
+  });
+
+  it('env MONGO_TS_ALLOW_WRITE overrides file allowWrite', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      allowWrite: false,
+    }));
+    process.env['MONGO_TS_ALLOW_WRITE'] = 'true';
+
+    const config = loadConfig();
+
+    expect(config.allowWrite).toBe(true);
+  });
+
+  it('returns complete merged config', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      uri: 'mongodb://file:27017',
+      defaultDb: 'filedb',
+      format: 'csv',
+      allowWrite: true,
+    }));
+    process.env['MONGO_TS_URI'] = 'mongodb://env:27017';
+    delete process.env['MONGO_TS_DB'];
+    delete process.env['MONGO_TS_FORMAT'];
+    delete process.env['MONGO_TS_ALLOW_WRITE'];
+
+    const config = loadConfig();
+
+    expect(config).toEqual({
+      uri: 'mongodb://env:27017',
+      defaultDb: 'filedb',
+      format: 'csv',
+      allowWrite: true,
+    });
   });
 });
 
@@ -179,5 +281,25 @@ describe('saveConfig', () => {
 
     expect(mkdirSync).not.toHaveBeenCalled();
     expect(writeFileSync).toHaveBeenCalled();
+  });
+
+  it('overwrites existing fields when saving', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      uri: 'mongodb://old:27017',
+      defaultDb: 'olddb',
+    }));
+
+    saveConfig({ uri: 'mongodb://new:27017' });
+
+    const expectedJson = JSON.stringify({
+      uri: 'mongodb://new:27017',
+      defaultDb: 'olddb',
+    }, null, 2);
+
+    expect(writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('config.json'),
+      expectedJson
+    );
   });
 });
