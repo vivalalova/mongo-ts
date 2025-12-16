@@ -3,9 +3,23 @@
   "version": "1.0.0",
   "description": "MongoDB CLI Tool",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/types/index.d.ts",
   "bin": {
     "mongots": "./dist/bin/mongots.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vivalalova/mongo-ts.git"
+  },
+  "homepage": "https://github.com/vivalalova/mongo-ts",
+  "bugs": {
+    "url": "https://github.com/vivalalova/mongo-ts/issues"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -25,9 +39,17 @@
     "yaml": "^2.4.5"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.1.1",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.0.15",
+    "conventional-changelog-conventionalcommits": "^9.0.0",
     "eslint": "^9.0.0",
+    "semantic-release": "^25.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.0.15"
