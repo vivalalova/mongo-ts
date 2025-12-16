@@ -17,7 +17,7 @@ program
   .option('-u, --uri <uri>', 'MongoDB 連線字串')
   .option('-d, --db <database>', '指定資料庫')
   .option('-f, --format <type>', '輸出格式: table|json|csv|yaml', 'table')
-  .option('--readonly', '唯讀模式，禁止寫入操作', false)
+  .option('--allow-write', '允許寫入操作（預設為唯讀模式）', false)
   .option('--quiet', '靜默模式，只輸出資料', false)
   .option('--verbose', '詳細模式', false)
   .option('--config <path>', '指定設定檔路徑')
@@ -42,7 +42,7 @@ async function main(cliOpts: Record<string, unknown>): Promise<void> {
     uri: (cliOpts['uri'] as string) || config.uri,
     db: (cliOpts['db'] as string) || config.defaultDb,
     format: validateFormat((cliOpts['format'] as string) || config.format || 'table'),
-    readonly: (cliOpts['readonly'] as boolean) || config.readonly || false,
+    allowWrite: (cliOpts['allowWrite'] as boolean) || config.allowWrite || false,
     quiet: cliOpts['quiet'] as boolean,
     verbose: cliOpts['verbose'] as boolean,
   };
@@ -80,7 +80,7 @@ async function main(cliOpts: Record<string, unknown>): Promise<void> {
  * 執行查詢並輸出結果
  */
 async function executeAndPrint(query: string, options: GlobalOptions): Promise<void> {
-  const result = await executeQuery(query, options.readonly);
+  const result = await executeQuery(query, !options.allowWrite);
 
   if (!result.success) {
     logger.error(result.error || 'Unknown error');

@@ -32,8 +32,8 @@ export async function startShell(options: GlobalOptions): Promise<void> {
   });
 
   logger.info('MongoDB Shell - 輸入 .help 查看指令說明');
-  if (options.readonly) {
-    logger.warn('Readonly mode enabled');
+  if (!options.allowWrite) {
+    logger.warn('Readonly mode (use --allow-write to enable writes)');
   }
 
   rl.prompt();
@@ -100,7 +100,7 @@ async function processInput(
 
   // 執行查詢
   try {
-    const result = await executeQuery(input, state.options.readonly);
+    const result = await executeQuery(input, !state.options.allowWrite);
 
     if (!result.success) {
       logger.error(result.error || 'Unknown error');
@@ -163,9 +163,9 @@ async function handleShellCommand(
       }
       break;
 
-    case '.readonly':
-      state.options.readonly = !state.options.readonly;
-      logger.info(`Readonly mode: ${state.options.readonly ? 'ON' : 'OFF'}`);
+    case '.allow-write':
+      state.options.allowWrite = !state.options.allowWrite;
+      logger.info(`Write mode: ${state.options.allowWrite ? 'ON (writes allowed)' : 'OFF (readonly)'}`);
       break;
 
     case '.db':
@@ -190,8 +190,8 @@ function getPrompt(state: ShellState): string {
   }
 
   const dbName = mongoClient.getCurrentDbName() || 'test';
-  const readonlyFlag = state.options.readonly ? ' [RO]' : '';
-  return `${dbName}${readonlyFlag}> `;
+  const writeFlag = state.options.allowWrite ? '' : ' [RO]';
+  return `${dbName}${writeFlag}> `;
 }
 
 /**
@@ -238,7 +238,7 @@ Shell 內建命令:
   .use <db>        切換資料庫
   .db              顯示目前資料庫
   .format <type>   設定輸出格式 (table|json|csv|yaml)
-  .readonly        切換唯讀模式
+  .allow-write     切換寫入模式（預設唯讀）
   .history         顯示歷史紀錄
 
 查詢語法:

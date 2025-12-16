@@ -1,6 +1,6 @@
 ---
 name: mongo-ts
-description: MongoDB CLI 工具。直接執行 MongoDB 查詢語法，支援 CRUD、聚合、索引管理。輸出格式：table/json/csv/yaml。支援唯讀模式保護生產環境。
+description: MongoDB CLI 工具。直接執行 MongoDB 查詢語法，支援 CRUD、聚合、索引管理。輸出格式：table/json/csv/yaml。預設唯讀模式保護生產環境。
 ---
 
 # mongo-ts
@@ -27,11 +27,10 @@ node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
 | 操作 | 範例 |
 |------|------|
 | 查詢 | `mongots -u "mongodb://..." -q "db.users.find()"` |
-| 新增 | `mongots -q "db.users.insertOne({name: 'test'})"` |
-| 更新 | `mongots -q "db.users.updateOne({_id: '...'}, {$set: {name: 'new'}})"` |
-| 刪除 | `mongots -q "db.users.deleteOne({_id: '...'})"` |
+| 新增 | `mongots --allow-write -q "db.users.insertOne({name: 'test'})"` |
+| 更新 | `mongots --allow-write -q "db.users.updateOne({_id: '...'}, {$set: {name: 'new'}})"` |
+| 刪除 | `mongots --allow-write -q "db.users.deleteOne({_id: '...'})"` |
 | 聚合 | `mongots -q "db.orders.aggregate([{$group: {_id: '$status'}}])"` |
-| 唯讀 | `mongots --readonly -q "db.users.find()"` |
 | Shell | `mongots`（無參數進入互動模式）|
 
 ## 命令選項
@@ -42,7 +41,7 @@ node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
 | `-u, --uri <uri>` | MongoDB 連線字串 |
 | `-d, --db <database>` | 指定資料庫 |
 | `-f, --format <type>` | 輸出格式：table/json/csv/yaml（預設 table）|
-| `--readonly` | 唯讀模式，禁止寫入操作 |
+| `--allow-write` | 允許寫入操作（預設唯讀）|
 | `--quiet` | 靜默模式，只輸出資料 |
 | `--verbose` | 詳細模式 |
 
@@ -59,7 +58,7 @@ node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
   "uri": "mongodb://localhost:27017",
   "defaultDb": "mydb",
   "format": "table",
-  "readonly": false
+  "allowWrite": false
 }
 ```
 
@@ -76,10 +75,10 @@ node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
 | 索引 | `db.coll.createIndex({})`, `db.coll.getIndexes()` |
 | 管理 | `show dbs`, `show collections`, `db.stats()` |
 
-## 唯讀模式
+## 唯讀模式（預設）
 
-啟用 `--readonly` 時，僅允許讀取操作：
+預設為唯讀模式，使用 `--allow-write` 啟用寫入操作。
 
-**允許**：find, findOne, countDocuments, aggregate（無 $out/$merge）, getIndexes, stats, show dbs/collections
+**唯讀允許**：find, findOne, countDocuments, aggregate（無 $out/$merge）, getIndexes, stats, show dbs/collections
 
-**禁止**：insert*, update*, delete*, drop*, createIndex, dropIndex
+**需要 `--allow-write`**：insert*, update*, delete*, drop*, createIndex, dropIndex

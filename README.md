@@ -51,7 +51,7 @@ mongots
 .help              # 顯示說明
 .use <db>          # 切換資料庫
 .format <type>     # 設定輸出格式
-.readonly          # 切換唯讀模式
+.allow-write       # 切換寫入模式（預設唯讀）
 .exit              # 離開
 ```
 
@@ -63,7 +63,7 @@ mongots
 | `-u, --uri <uri>` | MongoDB 連線字串 |
 | `-d, --db <database>` | 指定資料庫 |
 | `-f, --format <type>` | 輸出格式：`table` / `json` / `csv` / `yaml` |
-| `--readonly` | 唯讀模式，禁止寫入操作 |
+| `--allow-write` | 允許寫入操作（預設為唯讀模式） |
 | `--quiet` | 靜默模式，只輸出資料 |
 | `--verbose` | 詳細模式 |
 
@@ -85,24 +85,25 @@ export MONGO_DB="mydb"
   "uri": "mongodb://localhost:27017",
   "defaultDb": "test",
   "format": "table",
-  "readonly": false
+  "allowWrite": false
 }
 ```
 
 優先順序：CLI 選項 > 環境變數 > 設定檔
 
-## Readonly 模式
+## 唯讀模式（預設）
 
-啟用 `--readonly` 保護生產環境資料：
+預設為唯讀模式，保護生產環境資料。使用 `--allow-write` 啟用寫入：
 
 ```bash
-mongots --readonly -q "db.users.find()"        # ✅ 允許
-mongots --readonly -q "db.users.deleteMany({})" # ❌ 禁止
+mongots -q "db.users.find()"                         # ✅ 允許（唯讀）
+mongots -q "db.users.deleteMany({})"                 # ❌ 禁止（唯讀）
+mongots --allow-write -q "db.users.deleteMany({})"   # ✅ 允許（已啟用寫入）
 ```
 
-**允許的操作**：find, findOne, countDocuments, aggregate, getIndexes, stats, show
+**唯讀模式允許**：find, findOne, countDocuments, aggregate, getIndexes, stats, show
 
-**禁止的操作**：insert*, update*, delete*, drop*, createIndex
+**需要 `--allow-write`**：insert*, update*, delete*, drop*, createIndex
 
 ## 輸出格式範例
 

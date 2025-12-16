@@ -21,7 +21,7 @@ export function loadConfig(customPath?: string): Config {
 
   const defaultConfig: Config = {
     format: 'table',
-    readonly: false,
+    allowWrite: false,
   };
 
   // 讀取設定檔
