@@ -48,7 +48,7 @@ describe('formatOutput', () => {
 
     it('defaults to table for unknown format', () => {
       const result = formatOutput(docs, 'unknown' as never);
-      expect(result).toContain('│');
+      expect(result).toContain('|');  // Markdown table separator
     });
   });
 

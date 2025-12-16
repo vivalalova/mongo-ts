@@ -57,7 +57,7 @@ describe('formatTable', () => {
     const docs = [{ _id: '1', content: longString }];
     const result = formatTable(docs, { maxWidth: 20 });
 
-    // cli-table3 truncates content - result should not contain full string
+    // Markdown table truncates long content
     expect(result).not.toContain(longString);
   });
 
