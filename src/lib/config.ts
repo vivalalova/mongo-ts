@@ -37,11 +37,14 @@ export function loadConfig(customPath?: string): Config {
     }
   }
 
-  // 環境變數
-  const envConfig: Config = {
-    uri: process.env['MONGO_URI'],
-    defaultDb: process.env['MONGO_DB'],
-  };
+  // 環境變數（只包含有值的設定，避免 undefined 覆蓋檔案設定）
+  const envConfig: Config = {};
+  if (process.env['MONGO_URI']) {
+    envConfig.uri = process.env['MONGO_URI'];
+  }
+  if (process.env['MONGO_DB']) {
+    envConfig.defaultDb = process.env['MONGO_DB'];
+  }
 
   // 合併設定（環境變數優先於設定檔）
   return {
