@@ -23,6 +23,9 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
+# Test coverage
+coverage/
+
 # Sensitive files
 *.pem
 *.key

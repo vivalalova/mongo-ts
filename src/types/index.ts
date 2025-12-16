@@ -15,8 +15,8 @@ export interface GlobalOptions {
   db?: string;
   /** 輸出格式 */
   format: OutputFormat;
-  /** 唯讀模式 */
-  readonly: boolean;
+  /** 允許寫入（預設為 false，即唯讀模式） */
+  allowWrite: boolean;
   /** 靜默模式 */
   quiet: boolean;
   /** 詳細模式 */
@@ -33,8 +33,8 @@ export interface Config {
   defaultDb?: string;
   /** 預設輸出格式 */
   format?: OutputFormat;
-  /** 預設唯讀模式 */
-  readonly?: boolean;
+  /** 允許寫入（預設為 false） */
+  allowWrite?: boolean;
 }
 
 /**

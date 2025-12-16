@@ -38,7 +38,7 @@ function parseShowCommand(query: string): ParsedQuery {
       return { type: 'admin', method: 'listDatabases', args: [] };
     case 'collections':
     case 'tables':
-      return { type: 'read', method: 'listCollections', args: [] };
+      return { type: 'admin', method: 'listCollections', args: [] };
     default:
       return { type: 'unknown', args: [] };
   }
@@ -62,19 +62,19 @@ function parseDbQuery(query: string): ParsedQuery {
   // db.stats()
   const dbStatsMatch = query.match(/^db\.stats\(\)$/);
   if (dbStatsMatch) {
-    return { type: 'read', method: 'dbStats', args: [] };
+    return { type: 'admin', method: 'dbStats', args: [] };
   }
 
   // db.dropDatabase()
   const dropDbMatch = query.match(/^db\.dropDatabase\(\)$/);
   if (dropDbMatch) {
-    return { type: 'write', method: 'dropDatabase', args: [] };
+    return { type: 'admin', method: 'dropDatabase', args: [] };
   }
 
   // db.getCollectionNames()
   const getCollNamesMatch = query.match(/^db\.getCollectionNames\(\)$/);
   if (getCollNamesMatch) {
-    return { type: 'read', method: 'listCollections', args: [] };
+    return { type: 'admin', method: 'listCollections', args: [] };
   }
 
   // db.<collection>.<method>(...)

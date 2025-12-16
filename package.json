@@ -3,31 +3,58 @@
   "version": "1.0.0",
   "description": "MongoDB CLI Tool",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/types/index.d.ts",
   "bin": {
     "mongots": "./dist/bin/mongots.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vivalalova/mongo-ts.git"
+  },
+  "homepage": "https://github.com/vivalalova/mongo-ts",
+  "bugs": {
+    "url": "https://github.com/vivalalova/mongo-ts/issues"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/bin/mongots.js",
-    "test": "vitest",
-    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "chalk": "^5.3.0",
-    "cli-table3": "^0.6.5",
     "commander": "^14.0.0",
     "dotenv": "^16.4.5",
     "mongodb": "^7.0.0",
     "yaml": "^2.4.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.1.1",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "@vitest/coverage-v8": "^4.0.15",
+    "conventional-changelog-conventionalcommits": "^9.0.0",
     "eslint": "^9.0.0",
+    "semantic-release": "^25.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.0.15"
   },
   "engines": {
     "node": ">=20.0.0"

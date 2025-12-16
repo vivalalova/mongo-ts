@@ -1,9 +1,8 @@
-import Table from 'cli-table3';
 import { Document } from 'mongodb';
 import type { FormatterOptions } from '../../types/index.js';
 
 /**
- * 格式化為表格
+ * 格式化為 Markdown 表格
  */
 export function formatTable(docs: Document[], options: FormatterOptions = {}): string {
   if (docs.length === 0) {
@@ -19,21 +18,62 @@ export function formatTable(docs: Document[], options: FormatterOptions = {}): s
 
   const maxWidth = options.maxWidth || 50;
 
-  // 建立表格
-  const table = new Table({
-    head: columns,
-    style: { head: ['cyan'], border: ['gray'] },
-    wordWrap: true,
-    colWidths: columns.map(() => Math.min(maxWidth, Math.floor(process.stdout.columns / columns.length) || maxWidth)),
+  // 格式化所有資料
+  const rows = docs.map((doc) =>
+    columns.map((col) => formatValue(getNestedValue(doc, col), maxWidth))
+  );
+
+  // 計算每欄最大寬度（考慮標題和內容）
+  const colWidths = columns.map((col, i) => {
+    const contentWidths = rows.map((row) => getDisplayWidth(row[i]));
+    return Math.max(getDisplayWidth(col), ...contentWidths);
   });
 
-  // 填入資料
-  for (const doc of docs) {
-    const row = columns.map((col) => formatValue(getNestedValue(doc, col), maxWidth));
-    table.push(row);
-  }
+  // 建立 Markdown 表格
+  const headerRow = formatMarkdownRow(columns, colWidths);
+  const separatorRow = colWidths.map((w) => '-'.repeat(w)).join(' | ');
+  const dataRows = rows.map((row) => formatMarkdownRow(row, colWidths));
 
-  return table.toString();
+  return [headerRow, separatorRow, ...dataRows].join('\n');
+}
+
+/**
+ * 格式化 Markdown 表格列
+ */
+function formatMarkdownRow(cells: string[], widths: number[]): string {
+  return cells
+    .map((cell, i) => padRight(cell, widths[i]))
+    .join(' | ');
+}
+
+/**
+ * 右側填充空格對齊
+ */
+function padRight(str: string, width: number): string {
+  const displayWidth = getDisplayWidth(str);
+  const padding = width - displayWidth;
+  return str + ' '.repeat(Math.max(0, padding));
+}
+
+/**
+ * 取得字串顯示寬度（考慮中文等雙寬字元）
+ */
+function getDisplayWidth(str: string): number {
+  let width = 0;
+  for (const char of str) {
+    const code = char.charCodeAt(0);
+    // CJK 字元範圍（粗略判斷）
+    if (code >= 0x4e00 && code <= 0x9fff) {
+      width += 2;
+    } else if (code >= 0x3000 && code <= 0x30ff) {
+      width += 2;
+    } else if (code >= 0xff00 && code <= 0xffef) {
+      width += 2;
+    } else {
+      width += 1;
+    }
+  }
+  return width;
 }
 
 /**

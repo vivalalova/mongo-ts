@@ -1,8 +1,5 @@
 import chalk from 'chalk';
 
-/** 日誌等級 */
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
 /** 是否啟用詳細模式 */
 let verboseMode = false;
 
