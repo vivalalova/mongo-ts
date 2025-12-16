@@ -2,27 +2,18 @@
 
 MongoDB CLI 工具，直接執行 MongoDB 查詢語法。
 
-## 安裝為 Claude Code Plugin
+## Claude Code Skill 安裝
 
 ```bash
-# 加入 plugin
-claude mcp add-skill /path/to/mongo-ts/plugins/skills/mongo-ts
-```
-
-或手動在 `~/.claude/settings.json` 加入：
-
-```json
-{
-  "skills": [
-    "/path/to/mongo-ts/plugins/skills/mongo-ts"
-  ]
-}
+# 從 marketplace 安裝
+/plugin marketplace add vivalalova/mongo-ts
+/plugin install mongo-ts@vivalalova/mongo-ts
 ```
 
 首次使用需 build：
 
 ```bash
-cd /path/to/mongo-ts && pnpm install && pnpm build
+cd ${PLUGIN_ROOT} && pnpm install && pnpm build
 ```
 
 ## 使用說明
