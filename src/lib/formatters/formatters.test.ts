@@ -119,4 +119,30 @@ describe('formatOutput', () => {
       expect(result).toBe('- _id: "1"\n  name: Alice\n- _id: "2"\n  name: Bob\n');
     });
   });
+
+  describe('edge cases', () => {
+    it('handles null data', () => {
+      expect(formatOutput(null as never, 'table')).toBe('No results');
+    });
+
+    it('handles undefined data', () => {
+      expect(formatOutput(undefined as never, 'table')).toBe('No results');
+    });
+
+    it('handles 0 as number', () => {
+      expect(formatOutput(0, 'json')).toBe('0');
+    });
+
+    it('handles empty string', () => {
+      expect(formatOutput('', 'json')).toBe('');
+    });
+
+    it('handles negative number', () => {
+      expect(formatOutput(-42, 'json')).toBe('-42');
+    });
+
+    it('handles float number', () => {
+      expect(formatOutput(3.14159, 'json')).toBe('3.14159');
+    });
+  });
 });

@@ -19,6 +19,21 @@ describe('parseQuery', () => {
       const result = parseQuery('show invalid');
       expect(result.type).toBe('unknown');
     });
+
+    it('handles extra whitespace', () => {
+      const result = parseQuery('show   dbs');
+      expect(result.method).toBe('listDatabases');
+    });
+
+    it('handles leading/trailing whitespace', () => {
+      const result = parseQuery('  show dbs  ');
+      expect(result.method).toBe('listDatabases');
+    });
+
+    it('returns unknown for show without target', () => {
+      const result = parseQuery('show');
+      expect(result.type).toBe('unknown');
+    });
   });
 
   describe('use command', () => {
@@ -33,6 +48,21 @@ describe('parseQuery', () => {
       const result = parseQuery('USE testdb');
       expect(result.method).toBe('use');
       expect(result.args).toEqual(['testdb']);
+    });
+
+    it('returns unknown for use without database name', () => {
+      const result = parseQuery('use');
+      expect(result.type).toBe('unknown');
+    });
+
+    it('parses database name with numbers', () => {
+      const result = parseQuery('use db123');
+      expect(result.args).toEqual(['db123']);
+    });
+
+    it('parses database name with underscore', () => {
+      const result = parseQuery('use my_database');
+      expect(result.args).toEqual(['my_database']);
     });
   });
 
@@ -134,6 +164,53 @@ describe('parseQuery', () => {
       expect(result.type).toBe('write');
       expect(result.method).toBe('drop');
     });
+
+    it('parses updateMany', () => {
+      const result = parseQuery('db.users.updateMany({active: false}, {$set: {deleted: true}})');
+      expect(result.type).toBe('write');
+      expect(result.method).toBe('updateMany');
+      expect(result.args).toEqual([{ active: false }, { $set: { deleted: true } }]);
+    });
+
+    it('parses deleteMany', () => {
+      const result = parseQuery('db.logs.deleteMany({date: {$lt: "2024-01-01"}})');
+      expect(result.type).toBe('write');
+      expect(result.method).toBe('deleteMany');
+    });
+
+    it('parses replaceOne', () => {
+      const result = parseQuery('db.users.replaceOne({_id: "123"}, {name: "new"})');
+      expect(result.type).toBe('write');
+      expect(result.method).toBe('replaceOne');
+    });
+
+    it('parses dropIndex', () => {
+      const result = parseQuery('db.users.dropIndex("email_1")');
+      expect(result.type).toBe('write');
+      expect(result.method).toBe('dropIndex');
+    });
+
+    it('returns unknown for incomplete db query', () => {
+      expect(parseQuery('db.users').type).toBe('unknown');
+      expect(parseQuery('db.users.').type).toBe('unknown');
+      expect(parseQuery('db.').type).toBe('unknown');
+    });
+
+    it('returns unknown for unknown collection method', () => {
+      const result = parseQuery('db.users.unknownMethod()');
+      expect(result.type).toBe('unknown');
+      expect(result.method).toBe('unknownMethod');
+    });
+
+    it('parses collection name with numbers', () => {
+      const result = parseQuery('db.logs2024.find()');
+      expect(result.collection).toBe('logs2024');
+    });
+
+    it('parses collection name with underscore', () => {
+      const result = parseQuery('db.user_sessions.find()');
+      expect(result.collection).toBe('user_sessions');
+    });
   });
 
   describe('special syntax', () => {
@@ -156,6 +233,36 @@ describe('parseQuery', () => {
       const result = parseQuery('db.users.find({count: NumberLong(123456789)})');
       expect(result.args).toEqual([{ count: { $numberLong: '123456789' } }]);
     });
+
+    it('handles multiple ObjectIds', () => {
+      const result = parseQuery('db.users.find({$or: [{_id: ObjectId("111111111111111111111111")}, {_id: ObjectId("222222222222222222222222")}]})');
+      expect(result.args).toEqual([{
+        $or: [
+          { _id: { $oid: '111111111111111111111111' } },
+          { _id: { $oid: '222222222222222222222222' } },
+        ],
+      }]);
+    });
+
+    it('handles nested objects', () => {
+      const result = parseQuery('db.users.find({address: {city: "Tokyo", country: "Japan"}})');
+      expect(result.args).toEqual([{ address: { city: 'Tokyo', country: 'Japan' } }]);
+    });
+
+    it('handles array in query', () => {
+      const result = parseQuery('db.users.find({tags: {$in: ["a", "b", "c"]}})');
+      expect(result.args).toEqual([{ tags: { $in: ['a', 'b', 'c'] } }]);
+    });
+
+    it('handles double quotes in values', () => {
+      const result = parseQuery('db.users.find({name: "John Doe"})');
+      expect(result.args).toEqual([{ name: 'John Doe' }]);
+    });
+
+    it('returns raw string when JSON parse fails', () => {
+      const result = parseQuery('db.users.find({invalid syntax})');
+      expect(result.args).toEqual(['{invalid syntax}']);
+    });
   });
 
   describe('unknown queries', () => {
@@ -163,6 +270,16 @@ describe('parseQuery', () => {
       expect(parseQuery('invalid').type).toBe('unknown');
       expect(parseQuery('select * from users').type).toBe('unknown');
       expect(parseQuery('').type).toBe('unknown');
+    });
+
+    it('returns unknown for whitespace only', () => {
+      expect(parseQuery('   ').type).toBe('unknown');
+      expect(parseQuery('\t\n').type).toBe('unknown');
+    });
+
+    it('returns unknown for partial db syntax', () => {
+      expect(parseQuery('db').type).toBe('unknown');
+      expect(parseQuery('database.users.find()').type).toBe('unknown');
     });
   });
 });
