@@ -12,38 +12,51 @@ MongoDB 命令列工具，直接執行查詢語法。
 Plugin 安裝後首次需 build：
 
 ```bash
-# PLUGIN_ROOT = 此 skill 所在 repo 的根目錄（往上三層）
 cd ${PLUGIN_ROOT} && pnpm install && pnpm build
 ```
 
-之後可直接執行：
+執行查詢：
 
 ```bash
-node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
+node ${PLUGIN_ROOT}/dist/bin/mongots.js -u "mongodb://..." -q "db.users.find()"
 ```
-
-## 使用方式
-
-| 操作 | 範例 |
-|------|------|
-| 查詢 | `mongots -u "mongodb://..." -q "db.users.find()"` |
-| 新增 | `mongots --allow-write -q "db.users.insertOne({name: 'test'})"` |
-| 更新 | `mongots --allow-write -q "db.users.updateOne({_id: '...'}, {$set: {name: 'new'}})"` |
-| 刪除 | `mongots --allow-write -q "db.users.deleteOne({_id: '...'})"` |
-| 聚合 | `mongots -q "db.orders.aggregate([{$group: {_id: '$status'}}])"` |
-| Shell | `mongots`（無參數進入互動模式）|
 
 ## 命令選項
 
 | 選項 | 說明 |
 |------|------|
-| `-q, --query <query>` | 執行查詢字串 |
+| `-q, --query <query>` | 執行查詢字串（必填） |
 | `-u, --uri <uri>` | MongoDB 連線字串 |
 | `-d, --db <database>` | 指定資料庫 |
 | `-f, --format <type>` | 輸出格式：table/json/csv/yaml（預設 table）|
 | `--allow-write` | 允許寫入操作（預設唯讀）|
 | `--quiet` | 靜默模式，只輸出資料 |
 | `--verbose` | 詳細模式 |
+
+## 使用範例
+
+```bash
+# 查詢
+mongots -u "mongodb://..." -q "db.users.find()"
+mongots -q "db.users.findOne({name: 'test'})"
+
+# 新增（需 --allow-write）
+mongots --allow-write -q "db.users.insertOne({name: 'test'})"
+
+# 更新
+mongots --allow-write -q "db.users.updateOne({_id: '...'}, {\$set: {name: 'new'}})"
+
+# 刪除
+mongots --allow-write -q "db.users.deleteOne({_id: '...'})"
+
+# 聚合
+mongots -q "db.orders.aggregate([{\$group: {_id: '\$status'}}])"
+
+# 管理
+mongots -q "show dbs"
+mongots -q "show collections"
+mongots -q "db.stats()"
+```
 
 ## 連線設定
 
@@ -82,3 +95,32 @@ node ${PLUGIN_ROOT}/dist/bin/mongots.js <options>
 **唯讀允許**：find, findOne, countDocuments, aggregate（無 $out/$merge）, getIndexes, stats, show dbs/collections
 
 **需要 `--allow-write`**：insert*, update*, delete*, drop*, createIndex, dropIndex
+
+## 輸出格式
+
+### Table（預設，Markdown 格式）
+
+```text
+_id                      | name  | age
+------------------------ | ----- | ---
+507f1f77bcf86cd799439011 | Alice | 25
+507f1f77bcf86cd799439012 | Bob   | 30
+```
+
+### JSON
+
+```bash
+mongots -q "db.users.find()" -f json
+```
+
+### CSV
+
+```bash
+mongots -q "db.users.find()" -f csv
+```
+
+### YAML
+
+```bash
+mongots -q "db.users.find()" -f yaml
+```
