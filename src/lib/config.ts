@@ -3,6 +3,7 @@ import { join } from 'path';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { config as loadEnv } from 'dotenv';
 import type { Config, OutputFormat } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 /** 設定檔目錄 */
 const CONFIG_DIR = join(homedir(), '.mongots');
@@ -39,11 +40,32 @@ export function loadConfig(customPath?: string): Config {
 
   // 環境變數（只包含有值的設定，避免 undefined 覆蓋檔案設定）
   const envConfig: Config = {};
-  if (process.env['MONGO_URI']) {
+
+  // 檢查已棄用的環境變數
+  if (process.env['MONGO_URI'] && !process.env['MONGO_TS_URI']) {
+    logger.warn('MONGO_URI 已棄用，請改用 MONGO_TS_URI');
     envConfig.uri = process.env['MONGO_URI'];
   }
-  if (process.env['MONGO_DB']) {
+  if (process.env['MONGO_DB'] && !process.env['MONGO_TS_DB']) {
+    logger.warn('MONGO_DB 已棄用，請改用 MONGO_TS_DB');
     envConfig.defaultDb = process.env['MONGO_DB'];
+  }
+
+  // 新的環境變數（優先）
+  if (process.env['MONGO_TS_URI']) {
+    envConfig.uri = process.env['MONGO_TS_URI'];
+  }
+  if (process.env['MONGO_TS_DB']) {
+    envConfig.defaultDb = process.env['MONGO_TS_DB'];
+  }
+  if (process.env['MONGO_TS_FORMAT']) {
+    const format = process.env['MONGO_TS_FORMAT'];
+    if (isValidFormat(format)) {
+      envConfig.format = format;
+    }
+  }
+  if (process.env['MONGO_TS_ALLOW_WRITE'] === 'true') {
+    envConfig.allowWrite = true;
   }
 
   // 合併設定（環境變數優先於設定檔）

@@ -137,6 +137,24 @@ describe('executeQuery', () => {
       });
       expect(mockDb.command).toHaveBeenCalledWith({ collStats: 'users' });
     });
+
+    it('executes estimatedDocumentCount', async () => {
+      mockCollection.estimatedDocumentCount.mockResolvedValueOnce(1000);
+      const result = await executeQuery('db.users.estimatedDocumentCount()');
+      expect(result).toEqual({
+        success: true,
+        data: 1000,
+      });
+    });
+
+    it('executes indexes (alias)', async () => {
+      mockCollection.indexes.mockResolvedValueOnce([{ key: { _id: 1 } }]);
+      const result = await executeQuery('db.users.indexes()');
+      expect(result).toEqual({
+        success: true,
+        data: [{ key: { _id: 1 } }],
+      });
+    });
   });
 
   describe('write operations', () => {
@@ -275,6 +293,17 @@ describe('executeQuery', () => {
       });
       expect(mockDb.dropDatabase).toHaveBeenCalled();
     });
+
+    it('executes db.getCollectionNames()', async () => {
+      mockDb.listCollections.mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([{ name: 'users' }]),
+      });
+      const result = await executeQuery('db.getCollectionNames()');
+      expect(result).toEqual({
+        success: true,
+        data: [{ name: 'users' }],
+      });
+    });
   });
 
   describe('readonly mode', () => {
@@ -305,6 +334,42 @@ describe('executeQuery', () => {
       const result = await executeQuery('db.orders.aggregate([{$group: {_id: "$status"}}])', true);
       expect(result.success).toBe(true);
     });
+
+    it('blocks dropDatabase in readonly mode', async () => {
+      const result = await executeQuery('db.dropDatabase()', true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not allowed in readonly mode');
+    });
+
+    it('allows show dbs in readonly mode', async () => {
+      const result = await executeQuery('show dbs', true);
+      expect(result.success).toBe(true);
+    });
+
+    it('allows db.stats() in readonly mode', async () => {
+      const result = await executeQuery('db.stats()', true);
+      expect(result.success).toBe(true);
+    });
+
+    it('allows use command in readonly mode', async () => {
+      const result = await executeQuery('use testdb', true);
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks updateOne in readonly mode', async () => {
+      const result = await executeQuery('db.users.updateOne({}, {$set: {a: 1}})', true);
+      expect(result.success).toBe(false);
+    });
+
+    it('blocks deleteOne in readonly mode', async () => {
+      const result = await executeQuery('db.users.deleteOne({})', true);
+      expect(result.success).toBe(false);
+    });
+
+    it('blocks drop in readonly mode', async () => {
+      const result = await executeQuery('db.users.drop()', true);
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('error handling', () => {
@@ -328,6 +393,21 @@ describe('executeQuery', () => {
       const result = await executeQuery('db.users.find()');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Connection lost');
+    });
+
+    it('handles non-Error objects', async () => {
+      mockCollection.find.mockReturnValueOnce({
+        toArray: vi.fn().mockRejectedValueOnce('string error'),
+      });
+      const result = await executeQuery('db.users.find()');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('string error');
+    });
+
+    it('returns error for unsupported admin method', async () => {
+      // This would require a custom parsed query, but we can test via the error path
+      const result = await executeQuery('db.unknownAdminMethod()');
+      expect(result.success).toBe(false);
     });
   });
 });

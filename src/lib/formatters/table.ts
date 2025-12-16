@@ -146,10 +146,17 @@ function formatValue(value: unknown, maxWidth: number): string {
   // 物件/陣列
   if (typeof value === 'object') {
     const str = JSON.stringify(value);
-    return truncate(str, maxWidth);
+    return truncate(escapeNewlines(str), maxWidth);
   }
 
-  return truncate(String(value), maxWidth);
+  return truncate(escapeNewlines(String(value)), maxWidth);
+}
+
+/**
+ * 轉義換行符
+ */
+function escapeNewlines(str: string): string {
+  return str.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 /**

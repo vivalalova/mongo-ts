@@ -1,4 +1,5 @@
 import { MongoClient, Db, Admin } from 'mongodb';
+import { URL } from 'node:url';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -35,7 +36,32 @@ class MongoClientManager {
     await this.client.connect();
     logger.debug('Connected successfully');
 
+    // 從 URI 解析資料庫名稱
+    const dbFromUri = this.parseDbFromUri(uri);
+    if (dbFromUri) {
+      this.currentDbName = dbFromUri;
+      logger.debug(`Database from URI: ${dbFromUri}`);
+    }
+
     return this.client;
+  }
+
+  /**
+   * 從 URI 解析資料庫名稱
+   * @param uri - MongoDB 連線字串
+   */
+  private parseDbFromUri(uri: string): string | null {
+    try {
+      // mongodb://user:pass@host:port/database?options
+      const url = new URL(uri);
+      const pathname = url.pathname;
+      if (pathname && pathname.length > 1) {
+        return pathname.slice(1); // 移除開頭的 /
+      }
+    } catch (error) {
+      logger.debug(`Failed to parse database from URI: ${error}`);
+    }
+    return null;
   }
 
   /**

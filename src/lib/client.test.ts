@@ -57,6 +57,31 @@ describe('mongoClient', () => {
       const client2 = await mongoClient.connect('mongodb://localhost:27017');
       expect(client1).toBe(client2);
     });
+
+    it('parses database name from URI', async () => {
+      await mongoClient.connect('mongodb://localhost:27017/testdb');
+      expect(mongoClient.getCurrentDbName()).toBe('testdb');
+    });
+
+    it('parses database name from URI with options', async () => {
+      await mongoClient.connect('mongodb://user:pass@localhost:27017/mydb?authSource=admin');
+      expect(mongoClient.getCurrentDbName()).toBe('mydb');
+    });
+
+    it('does not set database when URI has no database', async () => {
+      await mongoClient.connect('mongodb://localhost:27017');
+      expect(mongoClient.getCurrentDbName()).toBe(null);
+    });
+
+    it('does not set database when URI ends with only slash', async () => {
+      await mongoClient.connect('mongodb://localhost:27017/');
+      expect(mongoClient.getCurrentDbName()).toBe(null);
+    });
+
+    it('handles invalid URI gracefully', async () => {
+      await mongoClient.connect('not-a-valid-uri');
+      expect(mongoClient.getCurrentDbName()).toBe(null);
+    });
   });
 
   describe('getClient', () => {

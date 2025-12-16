@@ -202,4 +202,29 @@ describe('formatTable', () => {
 
     expect(result).toBe('No columns to display');
   });
+
+  it('handles value with pipe character', () => {
+    const docs = [{ _id: '1', name: 'a|b' }];
+    const result = formatTable(docs);
+
+    expect(result).toContain('a|b');
+  });
+
+  it('handles value with newline character', () => {
+    const docs = [{ _id: '1', name: 'line1\nline2' }];
+    const result = formatTable(docs);
+
+    expect(result).toContain('line1\\nline2');
+  });
+
+  it('handles empty string value', () => {
+    const docs = [{ _id: '1', name: '' }];
+    const result = formatTable(docs);
+
+    expect(result).toBe(
+      '_id | name\n' +
+      '--- | ----\n' +
+      '1   |     '
+    );
+  });
 });

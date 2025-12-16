@@ -62,8 +62,21 @@ mongots -q "db.stats()"
 
 優先順序：CLI 參數 > 環境變數 > 設定檔
 
+### 首次使用
+
+若不知道連線資訊，使用 `AskUserQuestion` 詢問以下環境變數，並詢問是否寫入 `.env`：
+
+| 變數 | 說明 | 範例 |
+|------|------|------|
+| `MONGO_TS_URI` | MongoDB 連線字串（必填）| `mongodb://localhost:27017/mydb` |
+| `MONGO_TS_DB` | 預設資料庫（選填，覆蓋 URI）| `mydb` |
+| `MONGO_TS_FORMAT` | 輸出格式（選填）| `table`/`json`/`csv`/`yaml` |
+| `MONGO_TS_ALLOW_WRITE` | 允許寫入（選填）| `true` |
+
+### 設定方式
+
 1. **CLI 參數**：`-u "mongodb://localhost:27017"`
-2. **環境變數**：`MONGO_URI`、`MONGO_DB`
+2. **環境變數**：`.env` 檔案或系統環境變數
 3. **設定檔**：`~/.mongots/config.json`
 
 ```json
