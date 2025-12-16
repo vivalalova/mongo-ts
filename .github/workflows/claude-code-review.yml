@@ -40,16 +40,15 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
+            審查此 Pull Request，只列出需要改進的項目：
+            - Bug 或潛在問題
+            - 效能問題
+            - 安全疑慮
+            - 測試不足
 
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            參考 CLAUDE.md 的規範。若無需改進則回覆「LGTM」。
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            使用 `gh pr comment` 留下審查結果。
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
