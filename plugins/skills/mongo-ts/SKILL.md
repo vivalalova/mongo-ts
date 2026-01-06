@@ -9,16 +9,8 @@ MongoDB 命令列工具，直接執行查詢語法。
 
 ## 執行方式
 
-Plugin 安裝後首次需 build：
-
 ```bash
-cd ${PLUGIN_ROOT} && pnpm install && pnpm build
-```
-
-執行查詢：
-
-```bash
-node ${PLUGIN_ROOT}/dist/bin/mongots.js -u "mongodb://..." -q "db.users.find()"
+npx @lova/mongo-ts -u "mongodb://..." -q "db.users.find()"
 ```
 
 ## 命令選項

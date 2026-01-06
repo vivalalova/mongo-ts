@@ -5,15 +5,7 @@ MongoDB CLI 工具，直接執行 MongoDB 查詢語法。
 ## Claude Code Skill 安裝
 
 ```bash
-# 從 marketplace 安裝
-/plugin marketplace add vivalalova/mongo-ts
-/plugin install mongo-ts@vivalalova/mongo-ts
-```
-
-首次使用需 build：
-
-```bash
-cd ${PLUGIN_ROOT} && pnpm install && pnpm build
+/install vivalalova/mongo-ts
 ```
 
 ## 使用說明
