@@ -83,6 +83,7 @@ function isSpecialType(value: unknown): boolean {
     '_bsontype' in obj ||
     '$oid' in obj ||
     '$date' in obj ||
+    '$numberLong' in obj ||
     value instanceof Date
   );
 }
@@ -118,8 +119,11 @@ function formatValue(value: unknown): string {
 
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    if ('_bsontype' in obj && obj['_bsontype'] === 'ObjectId') {
-      return String(value);
+    if ('_bsontype' in obj) {
+      const bsonType = obj['_bsontype'];
+      if (bsonType === 'ObjectId' || bsonType === 'Long' || bsonType === 'Decimal128') {
+        return String(value);
+      }
     }
     if ('$oid' in obj) {
       return String(obj['$oid']);

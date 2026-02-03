@@ -38,9 +38,15 @@ function normalizeForYaml(data: unknown): unknown {
   if (typeof data === 'object') {
     const obj = data as Record<string, unknown>;
 
-    // ObjectId
-    if ('_bsontype' in obj && obj['_bsontype'] === 'ObjectId') {
-      return String(data);
+    // BSON 特殊類型（ObjectId, Long, Decimal128）
+    if ('_bsontype' in obj) {
+      const bsonType = obj['_bsontype'];
+      if (bsonType === 'ObjectId' || bsonType === 'Decimal128') {
+        return String(data);
+      }
+      if (bsonType === 'Long') {
+        return Number(data);
+      }
     }
 
     // 遞迴處理物件

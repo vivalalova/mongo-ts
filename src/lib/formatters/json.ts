@@ -24,15 +24,24 @@ function replacer(_key: string, value: unknown): unknown {
     return value;
   }
 
-  // ObjectId
+  // BSON 特殊類型
   if (typeof value === 'object' && value !== null) {
     const obj = value as Record<string, unknown>;
-    if ('_bsontype' in obj && obj['_bsontype'] === 'ObjectId') {
-      return { $oid: String(value) };
+    if ('_bsontype' in obj) {
+      const bsonType = obj['_bsontype'];
+      if (bsonType === 'ObjectId') {
+        return { $oid: String(value) };
+      }
+      if (bsonType === 'Long') {
+        return { $numberLong: String(value) };
+      }
+      if (bsonType === 'Decimal128') {
+        return { $numberDecimal: String(value) };
+      }
     }
   }
 
-  // Date
+  // Date（注意：JSON.stringify 會先呼叫 toJSON()，Date 到 replacer 時已是 string）
   if (value instanceof Date) {
     return { $date: value.toISOString() };
   }

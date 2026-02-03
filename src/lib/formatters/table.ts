@@ -127,14 +127,17 @@ function formatValue(value: unknown, maxWidth: number): string {
     return '';
   }
 
-  // ObjectId
+  // BSON 特殊類型
   if (typeof value === 'object' && value !== null) {
     const obj = value as Record<string, unknown>;
     if ('$oid' in obj) {
       return String(obj['$oid']);
     }
-    if ('_bsontype' in obj && obj['_bsontype'] === 'ObjectId') {
-      return String(value);
+    if ('_bsontype' in obj) {
+      const bsonType = obj['_bsontype'];
+      if (bsonType === 'ObjectId' || bsonType === 'Long' || bsonType === 'Decimal128') {
+        return String(value);
+      }
     }
   }
 
