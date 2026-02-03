@@ -1,3 +1,4 @@
+import { ObjectId, Long } from 'mongodb';
 import { ParsedQuery, QueryType, READONLY_METHODS, WRITE_METHODS } from '../types/index.js';
 
 /**
@@ -77,10 +78,18 @@ function parseDbQuery(query: string): ParsedQuery {
     return { type: 'admin', method: 'listCollections', args: [] };
   }
 
-  // db.<collection>.<method>(...)
-  const collMethodMatch = query.match(/^db\.(\w+)\.(\w+)\(([\s\S]*)\)$/);
+  // db.<collection>.<method>(...) — collection 可含點號（如 system.users）
+  const collMethodMatch = query.match(/^db\.([\w.]+)\.(\w+)\(([\s\S]*)\)$/);
   if (collMethodMatch) {
     const [, collection, method, argsStr] = collMethodMatch;
+
+    // 確保最後一段是方法名（避免 db.a.b 被誤解析為 collection=a, method=b）
+    // 若 method 不在已知方法中且 collection 含點，嘗試重新拆分
+    if (getQueryType(method) === 'unknown' && collection.includes('.')) {
+      // 可能是 db.system.users.find() 這類情況，但 method 確實是 unknown
+      // 仍然回傳讓 executor 決定
+    }
+
     const args = parseArguments(argsStr);
     const type = getQueryType(method);
 
@@ -101,34 +110,207 @@ function parseArguments(argsStr: string): unknown[] {
   }
 
   try {
-    // 嘗試解析為 JSON 陣列
-    // 將 JavaScript 物件語法轉換為 JSON
+    // 將 JavaScript 物件語法轉換為 JSON，再解析
     const jsonStr = convertToJson(trimmed);
+    const parsed = JSON.parse(`[${jsonStr}]`) as unknown[];
 
-    // 包裝成陣列後解析
-    const parsed = JSON.parse(`[${jsonStr}]`);
-    return parsed as unknown[];
+    // 將 Extended JSON 轉換為原生 BSON 型別
+    return parsed.map((arg) => deserializeBsonTypes(arg));
   } catch {
     // 解析失敗，返回原始字串
     return [trimmed];
   }
 }
 
+/** BSON 型別匹配模式：name → replacement 函式 */
+const BSON_PATTERNS: Array<{ pattern: RegExp; replace: string }> = [
+  // ObjectId / new ObjectId
+  { pattern: /^(?:new\s+)?ObjectId\(["']([^"']+)["']\)/, replace: '{"$oid":"$1"}' },
+  // ISODate / new ISODate
+  { pattern: /^(?:new\s+)?ISODate\(["']([^"']+)["']\)/, replace: '{"$date":"$1"}' },
+  // Date / new Date（與 ISODate 同等語義）
+  { pattern: /^(?:new\s+)?Date\(["']([^"']+)["']\)/, replace: '{"$date":"$1"}' },
+  // NumberLong 帶引號
+  { pattern: /^(?:new\s+)?NumberLong\(["'](-?\d+)["']\)/, replace: '{"$numberLong":"$1"}' },
+  // NumberLong 不帶引號
+  { pattern: /^(?:new\s+)?NumberLong\((-?\d+)\)/, replace: '{"$numberLong":"$1"}' },
+  // NumberInt 帶引號
+  { pattern: /^(?:new\s+)?NumberInt\(["']?(-?\d+)["']?\)/, replace: '$1' },
+];
+
 /**
  * 將 JavaScript 物件語法轉換為 JSON
+ *
+ * 逐字元掃描，區分字串內外的 token，避免正則誤匹配字串值內容。
+ * BSON 型別在掃描器內部處理，確保不會替換字串值內的文字。
  */
 function convertToJson(str: string): string {
-  return str
-    // 處理未加引號的 key（包含 $ 開頭的操作符）
-    .replace(/(\{|,)\s*(\$?\w+)\s*:/g, '$1"$2":')
-    // 處理單引號字串
-    .replace(/'([^']*)'/g, '"$1"')
-    // 處理 ObjectId
-    .replace(/ObjectId\("([^"]+)"\)/g, '{"$oid":"$1"}')
-    // 處理 ISODate
-    .replace(/ISODate\("([^"]+)"\)/g, '{"$date":"$1"}')
-    // 處理 NumberLong
-    .replace(/NumberLong\((\d+)\)/g, '{"$numberLong":"$1"}');
+  let output = '';
+  let i = 0;
+
+  while (i < str.length) {
+    // 跳過雙引號字串（保持原樣）
+    if (str[i] === '"') {
+      const end = findClosingQuote(str, i, '"');
+      output += str.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+
+    // 單引號字串 → 轉為雙引號（需轉義內部的雙引號）
+    if (str[i] === "'") {
+      const end = findClosingQuote(str, i, "'");
+      const content = str.slice(i + 1, end).replace(/"/g, '\\"');
+      output += '"' + content + '"';
+      i = end + 1;
+      continue;
+    }
+
+    // 開括號：直接輸出並嘗試匹配 key
+    if (str[i] === '{') {
+      output += str[i];
+      i++;
+      const wsKey = skipWhitespaceAndMatchKey(str, i);
+      output += wsKey.text;
+      i = wsKey.pos;
+      continue;
+    }
+
+    // 逗號：先檢查是否為尾逗號（後接 } 或 ]），若是則跳過
+    if (str[i] === ',') {
+      let peek = i + 1;
+      while (peek < str.length && /\s/.test(str[peek])) peek++;
+      if (peek < str.length && (str[peek] === '}' || str[peek] === ']')) {
+        i = peek; // 跳過尾逗號和空白
+        continue;
+      }
+
+      output += str[i];
+      i++;
+      const wsKey = skipWhitespaceAndMatchKey(str, i);
+      output += wsKey.text;
+      i = wsKey.pos;
+      continue;
+    }
+
+    // 嘗試匹配 BSON 型別（只在字串外部）
+    const bsonResult = tryMatchBson(str, i);
+    if (bsonResult) {
+      output += bsonResult.replacement;
+      i += bsonResult.consumed;
+      continue;
+    }
+
+    output += str[i];
+    i++;
+  }
+
+  return output;
+}
+
+/**
+ * 跳過空白並嘗試匹配未加引號的 key
+ * @returns 產出的文字片段和新的掃描位置
+ */
+function skipWhitespaceAndMatchKey(
+  str: string,
+  pos: number
+): { text: string; pos: number } {
+  let text = '';
+  let i = pos;
+
+  // 跳過空白
+  while (i < str.length && /\s/.test(str[i])) {
+    text += str[i];
+    i++;
+  }
+
+  // 檢查是否為未加引號的 key（$?word 後接 :）
+  const keyMatch = str.slice(i).match(/^(\$?\w+)\s*:/);
+  if (keyMatch) {
+    text += `"${keyMatch[1]}":`;
+    i += keyMatch[0].length;
+  }
+
+  return { text, pos: i };
+}
+
+/**
+ * 嘗試在指定位置匹配 BSON 型別
+ * @returns 匹配結果或 null
+ */
+function tryMatchBson(
+  str: string,
+  pos: number
+): { replacement: string; consumed: number } | null {
+  const remaining = str.slice(pos);
+
+  for (const { pattern, replace } of BSON_PATTERNS) {
+    const match = remaining.match(pattern);
+    if (match) {
+      const replacement = replace.replace(/\$1/g, match[1]);
+      return { replacement, consumed: match[0].length };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 找到配對的結束引號位置（跳過轉義字元）
+ */
+function findClosingQuote(str: string, start: number, quote: string): number {
+  let i = start + 1;
+  while (i < str.length) {
+    if (str[i] === '\\') {
+      i += 2; // 跳過轉義字元
+      continue;
+    }
+    if (str[i] === quote) {
+      return i;
+    }
+    i++;
+  }
+  return str.length - 1; // 未找到結束引號，返回末尾
+}
+
+/**
+ * 將 Extended JSON 物件遞迴轉換為原生 BSON 型別
+ * - {"$oid": "..."} → ObjectId("...")
+ * - {"$date": "..."} → Date("...")
+ * - {"$numberLong": "..."} → Long("...")
+ */
+function deserializeBsonTypes(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => deserializeBsonTypes(item));
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return value;
+  }
+
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj);
+
+  // Extended JSON 物件只有一個 key
+  if (keys.length === 1) {
+    if ('$oid' in obj && typeof obj.$oid === 'string') {
+      return new ObjectId(obj.$oid);
+    }
+    if ('$date' in obj && typeof obj.$date === 'string') {
+      return new Date(obj.$date);
+    }
+    if ('$numberLong' in obj && typeof obj.$numberLong === 'string') {
+      return Long.fromString(obj.$numberLong);
+    }
+  }
+
+  // 遞迴處理巢狀物件
+  const result: Record<string, unknown> = {};
+  for (const key of keys) {
+    result[key] = deserializeBsonTypes(obj[key]);
+  }
+  return result;
 }
 
 /**
