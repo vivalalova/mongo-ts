@@ -1,3 +1,13 @@
+## [1.1.1](https://github.com/vivalalova/mongo-ts/compare/v1.1.0...v1.1.1) (2026-02-03)
+
+### Bug Fixes
+
+* 格式化器支援 BSON Long 與 Decimal128 型別 ([22f5ea0](https://github.com/vivalalova/mongo-ts/commit/22f5ea051fdb17bc92f867f27cc577a9eb04630b))
+
+### Tests
+
+* 補充各模組 edge case 測試 ([8489d1d](https://github.com/vivalalova/mongo-ts/commit/8489d1d6909a7b85ef02c56499cdb0d76172315b))
+
 ## [1.1.0](https://github.com/vivalalova/mongo-ts/compare/v1.0.1...v1.1.0) (2026-02-03)
 
 ### Features
