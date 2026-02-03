@@ -1,0 +1,8 @@
+{
+  "name": "mongo-ts",
+  "version": "1.0.0",
+  "description": "MongoDB CLI 工具，直接執行查詢語法，支援 CRUD、聚合、索引管理。預設唯讀模式保護生產環境。",
+  "skills": [
+    "../plugins/skills/mongo-ts"
+  ]
+}
