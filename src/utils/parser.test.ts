@@ -1571,3 +1571,479 @@ describe('hasWriteStages', () => {
     expect(hasWriteStages([null, undefined, 'invalid'])).toBe(false);
   });
 });
+
+describe('掃描第2輪', () => {
+  it('巢狀 BSON：物件內含 ObjectId + NumberLong', () => {
+    const result = parseQuery('db.data.find({nested: {id: ObjectId("507f1f77bcf86cd799439011"), count: NumberLong(123)}})');
+    expect(result.args).toEqual([{
+      nested: {
+        id: new ObjectId('507f1f77bcf86cd799439011'),
+        count: Long.fromString('123'),
+      },
+    }]);
+  });
+
+  it('陣列中的多個 ObjectId', () => {
+    const result = parseQuery('db.data.find({ids: [ObjectId("aaaaaaaaaaaaaaaaaaaaaa11"), ObjectId("bbbbbbbbbbbbbbbbbbbbbb22")]})');
+    expect(result.args).toEqual([{
+      ids: [
+        new ObjectId('aaaaaaaaaaaaaaaaaaaaaa11'),
+        new ObjectId('bbbbbbbbbbbbbbbbbbbbbb22'),
+      ],
+    }]);
+  });
+
+  it('空字串 ObjectId 應解析（建構子處理驗證）', () => {
+    // ObjectId("") 會被 parser 嘗試建構，mongodb driver 會拋錯或產生隨機 id
+    // 這裡驗證 parser 不會崩潰
+    const result = parseQuery('db.users.find({_id: ObjectId("")})');
+    // parser 應該有回傳結果，不論 ObjectId 建構是否成功
+    expect(result).toBeDefined();
+    expect(result.method).toBe('find');
+  });
+});
+
+describe('掃描第3輪', () => {
+  describe('多行查詢', () => {
+    it('查詢含換行符應正確解析', () => {
+      const result = parseQuery('db.users.find({\n  name: "test"\n})');
+      expect(result.method).toBe('find');
+      expect(result.args).toEqual([{ name: 'test' }]);
+    });
+
+    it('多行查詢含多個欄位', () => {
+      const result = parseQuery('db.users.find({\n  name: "test",\n  age: 25,\n  active: true\n})');
+      expect(result.args).toEqual([{ name: 'test', age: 25, active: true }]);
+    });
+  });
+
+  describe('方法鏈（不支援但不應崩潰）', () => {
+    it('find().sort() 應返回 unknown 而非拋錯', () => {
+      // db.users.find({}).sort({name: 1}) — 外層正則匹配到最外面的括號
+      // 正則 ^db\.([\w.]+)\.(\w+)\(([\s\S]*)\)$ 需要最外面配對的括號
+      const result = parseQuery('db.users.find({}).sort({name: 1})');
+      // 不應拋錯
+      expect(result).toBeDefined();
+      // 由於正則 greedy 匹配，可能匹配到 sort 的結尾括號
+      // 重點是不崩潰
+      expect(['read', 'unknown']).toContain(result.type);
+    });
+
+    it('find().limit() 不應拋錯', () => {
+      const result = parseQuery('db.users.find({}).limit(10)');
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('正規表達式', () => {
+    it('$regex 操作符應正確解析', () => {
+      const result = parseQuery('db.users.find({name: {$regex: "^test", $options: "i"}})');
+      expect(result.args).toEqual([{ name: { $regex: '^test', $options: 'i' } }]);
+    });
+
+    it('regex literal 語法 /^test/i 解析不崩潰', () => {
+      // regex literal 不是合法 JSON，parser 可能 fallback 到 raw string
+      const result = parseQuery('db.users.find({name: /^test/i})');
+      expect(result).toBeDefined();
+      expect(result.method).toBe('find');
+    });
+  });
+
+  describe('空白引號', () => {
+    it('含空格的字串值', () => {
+      const result = parseQuery('db.users.find({name: " "})');
+      expect(result.args).toEqual([{ name: ' ' }]);
+    });
+
+    it('含多個空格的字串值', () => {
+      const result = parseQuery('db.users.find({name: "   "})');
+      expect(result.args).toEqual([{ name: '   ' }]);
+    });
+  });
+
+  describe('巢狀陣列中的物件', () => {
+    it('$or 含多個物件', () => {
+      const result = parseQuery('db.users.find({$or: [{a: 1}, {b: 2}]})');
+      expect(result.args).toEqual([{ $or: [{ a: 1 }, { b: 2 }] }]);
+    });
+
+    it('$and + $or 巢狀', () => {
+      const result = parseQuery('db.users.find({$and: [{$or: [{x: 1}, {y: 2}]}, {z: 3}]})');
+      expect(result.args).toEqual([{
+        $and: [
+          { $or: [{ x: 1 }, { y: 2 }] },
+          { z: 3 },
+        ],
+      }]);
+    });
+  });
+
+  describe('壓力測試：非常長的查詢', () => {
+    it('很多欄位的查詢不應崩潰', () => {
+      const fields = Array.from({ length: 20 }, (_, i) => `field${i}: ${i}`).join(', ');
+      const query = `db.data.find({${fields}})`;
+      const result = parseQuery(query);
+      expect(result.method).toBe('find');
+      expect(result.type).toBe('read');
+      const arg = result.args[0] as Record<string, unknown>;
+      expect(arg['field0']).toBe(0);
+      expect(arg['field19']).toBe(19);
+    });
+
+    it('很長的字串值', () => {
+      const longStr = 'x'.repeat(500);
+      const result = parseQuery(`db.data.find({msg: "${longStr}"})`);
+      expect(result.args).toEqual([{ msg: longStr }]);
+    });
+  });
+
+  describe('中文欄位名和值', () => {
+    it('中文 key 和 value', () => {
+      const result = parseQuery('db.users.find({姓名: "張三"})');
+      // 中文 key 無法被 $?\w+ 匹配（\w 不含中文）
+      // 所以 parser 可能 fallback 到 raw string
+      expect(result).toBeDefined();
+      expect(result.method).toBe('find');
+    });
+
+    it('已加引號的中文 key', () => {
+      const result = parseQuery('db.users.find({"姓名": "張三"})');
+      // 雙引號包裹的中文 key 是合法 JSON key
+      expect(result).toBeDefined();
+      expect(result.method).toBe('find');
+      // 加了引號的中文 key 應該通過 JSON.parse 正確解析
+      const arg = result.args[0] as Record<string, unknown>;
+      expect(arg['姓名']).toBe('張三');
+    });
+  });
+
+  describe('不合法的查詢格式', () => {
+    it('db.users. (結尾是點) 應返回 unknown', () => {
+      const result = parseQuery('db.users.');
+      expect(result.type).toBe('unknown');
+    });
+
+    it('db. 結尾應返回 unknown', () => {
+      const result = parseQuery('db.');
+      expect(result.type).toBe('unknown');
+    });
+
+    it('db.users.find( 缺少右括號不應崩潰', () => {
+      const result = parseQuery('db.users.find(');
+      expect(result).toBeDefined();
+      // 正則不會匹配，返回 unknown
+      expect(result.type).toBe('unknown');
+    });
+
+    it('db.users.find) 缺少左括號', () => {
+      const result = parseQuery('db.users.find)');
+      expect(result.type).toBe('unknown');
+    });
+  });
+
+  describe('find with projection 傳遞驗證', () => {
+    it('projection 作為第二個參數正確解析', () => {
+      const result = parseQuery('db.users.find({}, {name: 1, _id: 0})');
+      expect(result.args).toEqual([{}, { name: 1, _id: 0 }]);
+    });
+
+    it('有 filter 的 projection', () => {
+      const result = parseQuery('db.users.find({active: true}, {name: 1, email: 1})');
+      expect(result.args).toEqual([
+        { active: true },
+        { name: 1, email: 1 },
+      ]);
+    });
+  });
+
+  describe('aggregate 空 pipeline', () => {
+    it('aggregate([]) 應正確解析', () => {
+      const result = parseQuery('db.users.aggregate([])');
+      expect(result.method).toBe('aggregate');
+      expect(result.args).toEqual([[]]);
+    });
+  });
+
+  describe('isReadonlyOperation 邊界', () => {
+    it('unknown type 方法為 undefined', () => {
+      expect(isReadonlyOperation({ type: 'unknown', args: [] })).toBe(false);
+    });
+
+    it('admin 的 dropDatabase 不是 readonly', () => {
+      expect(isReadonlyOperation({ type: 'admin', method: 'dropDatabase', args: [] })).toBe(false);
+    });
+
+    it('admin 的空 method 不是 readonly', () => {
+      expect(isReadonlyOperation({ type: 'admin', method: '', args: [] })).toBe(false);
+    });
+  });
+
+  describe('hasWriteStages 邊界', () => {
+    it('只有 $out 的 pipeline', () => {
+      expect(hasWriteStages([{ $out: 'collection' }])).toBe(true);
+    });
+
+    it('$merge 在 pipeline 中間', () => {
+      expect(hasWriteStages([
+        { $match: {} },
+        { $merge: { into: 'target' } },
+        { $sort: { _id: 1 } },
+      ])).toBe(true);
+    });
+
+    it('pipeline 含 null/undefined/string 混合', () => {
+      expect(hasWriteStages([null, 'string', undefined, { $match: {} }])).toBe(false);
+    });
+  });
+
+  describe('掃描第4輪', () => {
+    describe('巢狀括號與深層結構', () => {
+      it('陣列內含物件內含陣列內含物件', () => {
+        const result = parseQuery('db.users.find({arr: [{a: [{b: 1}]}]})');
+        expect(result.args).toEqual([{ arr: [{ a: [{ b: 1 }] }] }]);
+      });
+
+      it('物件值是字串但含 JSON-like 內容（單引號）', () => {
+        const result = parseQuery("db.users.insertOne({data: '{\"key\": \"value\"}'})");
+        expect(result.args).toEqual([{ data: '{"key": "value"}' }]);
+      });
+
+      it('物件值是字串但含 JSON-like 內容（雙引號）', () => {
+        const result = parseQuery('db.users.insertOne({data: "{\\"key\\": \\"value\\"}"})');
+        expect(result.args).toEqual([{ data: '{"key": "value"}' }]);
+      });
+    });
+
+    describe('反斜線與 Unicode 轉義', () => {
+      it('反斜線轉義：Windows 路徑', () => {
+        const result = parseQuery('db.users.find({path: "C:\\\\Users\\\\test"})');
+        expect(result.args).toEqual([{ path: 'C:\\Users\\test' }]);
+      });
+
+      it('Unicode escape 序列', () => {
+        const result = parseQuery('db.users.find({name: "\\u4e2d\\u6587"})');
+        // JSON.parse 會處理 \u escape
+        const args = result.args as Array<Record<string, unknown>>;
+        expect(args[0].name).toBe('中文');
+      });
+    });
+
+    describe('連續多個 BSON type', () => {
+      it('三個 ObjectId 在同一查詢', () => {
+        const result = parseQuery(
+          'db.users.find({a: ObjectId("aaaaaaaaaaaaaaaaaaaaaa11"), b: ObjectId("bbbbbbbbbbbbbbbbbbbbbb22"), c: ObjectId("cccccccccccccccccccccc33")})'
+        );
+        expect(result.args).toEqual([{
+          a: new ObjectId('aaaaaaaaaaaaaaaaaaaaaa11'),
+          b: new ObjectId('bbbbbbbbbbbbbbbbbbbbbb22'),
+          c: new ObjectId('cccccccccccccccccccccc33'),
+        }]);
+      });
+
+      it('ObjectId + ObjectId + NumberLong 混合', () => {
+        const result = parseQuery(
+          'db.users.find({a: ObjectId("aaaaaaaaaaaaaaaaaaaaaa11"), b: ObjectId("bbbbbbbbbbbbbbbbbbbbbb22"), c: NumberLong(123)})'
+        );
+        expect(result.args).toEqual([{
+          a: new ObjectId('aaaaaaaaaaaaaaaaaaaaaa11'),
+          b: new ObjectId('bbbbbbbbbbbbbbbbbbbbbb22'),
+          c: Long.fromString('123'),
+        }]);
+      });
+    });
+
+    describe('方法名大小寫敏感', () => {
+      it('db.users.Find({}) 大寫 F 應為 unknown', () => {
+        const result = parseQuery('db.users.Find({})');
+        // find 在 READONLY_METHODS 和 WRITE_METHODS 中，但 Find 不在
+        expect(result.type).toBe('unknown');
+        expect(result.method).toBe('Find');
+      });
+
+      it('db.users.INSERT({}) 全大寫應為 unknown', () => {
+        const result = parseQuery('db.users.INSERT({})');
+        expect(result.type).toBe('unknown');
+        expect(result.method).toBe('INSERT');
+      });
+    });
+
+    describe('collection 名稱邊界', () => {
+      it('collection 名含數字', () => {
+        const result = parseQuery('db.logs2024.find({})');
+        expect(result.collection).toBe('logs2024');
+        expect(result.type).toBe('read');
+      });
+
+      it('collection 名含底線', () => {
+        const result = parseQuery('db.user_logs.find({})');
+        expect(result.collection).toBe('user_logs');
+        expect(result.type).toBe('read');
+      });
+    });
+
+    describe('ObjectId 邊界', () => {
+      it('ObjectId() 無參數不應崩潰', () => {
+        // ObjectId() 沒有引號包裹的參數，BSON_PATTERNS 的正則不會匹配
+        // parser 會 fallback 到原始字串
+        const result = parseQuery('db.users.find({_id: ObjectId()})');
+        expect(result).toBeDefined();
+        expect(result.method).toBe('find');
+        // 不應崩潰，args 可能是 fallback
+      });
+
+      it('ObjectId 含非 hex 字元不應崩潰', () => {
+        // BSON_PATTERNS 會匹配 ObjectId("...") 不論內容
+        // 但 new ObjectId("ZZZ...") 會拋錯，被 catch 處理
+        const result = parseQuery('db.users.find({_id: ObjectId("ZZZZZZZZZZZZZZZZZZZZZZZZ")})');
+        expect(result).toBeDefined();
+        expect(result.method).toBe('find');
+        // parser 的 catch 會返回原始字串 fallback
+      });
+    });
+
+    describe('NumberLong 溢出', () => {
+      it('超大數字不應崩潰', () => {
+        const result = parseQuery('db.data.find({n: NumberLong(99999999999999999999)})');
+        expect(result).toBeDefined();
+        expect(result.method).toBe('find');
+        // NumberLong 模式匹配 (-?\d+)，超大數字仍會被匹配
+        // Long.fromString 可能會截斷或拋錯，但 parseArguments 有 catch
+      });
+    });
+
+    describe('JS 注釋語法', () => {
+      it('查詢含 /* comment */ 不應崩潰', () => {
+        const result = parseQuery('db.users.find({/* comment */name: "test"})');
+        expect(result).toBeDefined();
+        expect(result.method).toBe('find');
+        // convertToJson 不處理 JS 注釋，可能導致 JSON.parse 失敗
+        // 但 parseArguments 有 catch，會 fallback 到原始字串
+      });
+    });
+
+    describe('$in 操作符含多值', () => {
+      it('$in 含 3 個字串值', () => {
+        const result = parseQuery('db.users.find({status: {$in: ["active", "pending", "blocked"]}})');
+        expect(result.args).toEqual([{
+          status: { $in: ['active', 'pending', 'blocked'] },
+        }]);
+      });
+    });
+
+    describe('projection 含 0/1 混合', () => {
+      it('find 的 projection 含 inclusion 和 exclusion', () => {
+        const result = parseQuery('db.users.find({}, {name: 1, age: 0})');
+        expect(result.args).toEqual([{}, { name: 1, age: 0 }]);
+      });
+
+      it('projection 含多個 0 和 1', () => {
+        const result = parseQuery('db.users.find({}, {name: 1, email: 1, age: 0, _id: 0})');
+        expect(result.args).toEqual([{}, { name: 1, email: 1, age: 0, _id: 0 }]);
+      });
+    });
+
+    describe('show 命令大小寫', () => {
+      it('SHOW DBS 全大寫', () => {
+        const result = parseQuery('SHOW DBS');
+        expect(result.type).toBe('admin');
+        expect(result.method).toBe('listDatabases');
+      });
+
+      it('Show Collections 混合大小寫', () => {
+        const result = parseQuery('Show Collections');
+        expect(result.type).toBe('admin');
+        expect(result.method).toBe('listCollections');
+      });
+
+      it('sHoW dBs 隨機大小寫', () => {
+        const result = parseQuery('sHoW dBs');
+        expect(result.type).toBe('admin');
+        expect(result.method).toBe('listDatabases');
+      });
+    });
+
+    describe('use 命令含空格資料庫名', () => {
+      it('use my db 應只取第一個 word', () => {
+        const result = parseQuery('use my db');
+        // parseUseCommand 的正則 /^use\s+(\w+)/i 只匹配第一個 word
+        expect(result.type).toBe('admin');
+        expect(result.method).toBe('use');
+        expect(result.args).toEqual(['my']);
+      });
+    });
+
+    describe('show 未知目標', () => {
+      it('show users 應返回 unknown', () => {
+        const result = parseQuery('show users');
+        expect(result.type).toBe('unknown');
+      });
+
+      it('show indexes 應返回 unknown', () => {
+        const result = parseQuery('show indexes');
+        expect(result.type).toBe('unknown');
+      });
+
+      it('show 後面跟數字', () => {
+        const result = parseQuery('show 123');
+        expect(result.type).toBe('unknown');
+      });
+    });
+
+    describe('極端 BSON 邊界組合', () => {
+      it('ObjectId 在 $nin 陣列中', () => {
+        const result = parseQuery(
+          'db.users.find({_id: {$nin: [ObjectId("aaaaaaaaaaaaaaaaaaaaaa11"), ObjectId("bbbbbbbbbbbbbbbbbbbbbb22")]}})'
+        );
+        expect(result.args).toEqual([{
+          _id: {
+            $nin: [
+              new ObjectId('aaaaaaaaaaaaaaaaaaaaaa11'),
+              new ObjectId('bbbbbbbbbbbbbbbbbbbbbb22'),
+            ],
+          },
+        }]);
+      });
+
+      it('ISODate + NumberLong + ObjectId 全在 $and 內', () => {
+        const result = parseQuery(
+          'db.data.find({$and: [{ts: {$gte: ISODate("2024-01-01")}}, {count: {$gt: NumberLong(100)}}, {uid: ObjectId("507f1f77bcf86cd799439011")}]})'
+        );
+        expect(result.args).toEqual([{
+          $and: [
+            { ts: { $gte: new Date('2024-01-01') } },
+            { count: { $gt: Long.fromString('100') } },
+            { uid: new ObjectId('507f1f77bcf86cd799439011') },
+          ],
+        }]);
+      });
+
+      it('NumberLong 負值 + trailing comma + nested object', () => {
+        const result = parseQuery(
+          'db.data.find({meta: {offset: NumberLong(-50), limit: NumberLong(10),},})'
+        );
+        expect(result.args).toEqual([{
+          meta: {
+            offset: Long.fromString('-50'),
+            limit: Long.fromString('10'),
+          },
+        }]);
+      });
+    });
+
+    describe('字串中含所有危險模式', () => {
+      it('字串同時含 ObjectId()、ISODate()、NumberLong()', () => {
+        const result = parseQuery(
+          'db.logs.find({msg: "ObjectId(abc) ISODate(2024) NumberLong(999)"})'
+        );
+        expect(result.args).toEqual([{
+          msg: 'ObjectId(abc) ISODate(2024) NumberLong(999)',
+        }]);
+      });
+
+      it('單引號字串含巢狀括號和逗號', () => {
+        const result = parseQuery("db.data.find({raw: 'fn(a, b(c, d))'})");
+        expect(result.args).toEqual([{ raw: 'fn(a, b(c, d))' }]);
+      });
+    });
+  });
+});

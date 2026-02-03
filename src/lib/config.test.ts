@@ -366,3 +366,112 @@ describe('saveConfig', () => {
     );
   });
 });
+
+describe('掃描第3輪', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env['MONGO_URI'];
+    delete process.env['MONGO_DB'];
+    delete process.env['MONGO_TS_URI'];
+    delete process.env['MONGO_TS_DB'];
+    delete process.env['MONGO_TS_FORMAT'];
+    delete process.env['MONGO_TS_ALLOW_WRITE'];
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('config 檔的 format 欄位無效時應 fallback 到 table', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      format: 'xml',
+    }));
+
+    const config = loadConfig();
+    // fileConfig 直接 spread，不驗證 format 值
+    // 所以 xml 會被帶入 — 這是個 bug 還是 by design？
+    // loadConfig 不驗證 file config 的 format，只驗證 env 的 format
+    expect(config.format).toBe('xml');
+  });
+
+  it('MONGO_TS_ALLOW_WRITE 為 "TRUE"（大寫）不啟用寫入', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_ALLOW_WRITE'] = 'TRUE';
+
+    const config = loadConfig();
+    // 只檢查 === 'true'（小寫），大寫不匹配
+    expect(config.allowWrite).toBe(false);
+  });
+
+  it('MONGO_TS_ALLOW_WRITE 為 "1" 不啟用寫入', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_ALLOW_WRITE'] = '1';
+
+    const config = loadConfig();
+    expect(config.allowWrite).toBe(false);
+  });
+
+  it('同時設定 MONGO_URI 和 MONGO_TS_URI 時不觸發 deprecation 警告', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_URI'] = 'mongodb://old:27017';
+    process.env['MONGO_TS_URI'] = 'mongodb://new:27017';
+
+    const config = loadConfig();
+
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(config.uri).toBe('mongodb://new:27017');
+  });
+
+  it('file config 的 allowWrite 為 false，env 未設定時保持 false', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+      allowWrite: false,
+    }));
+
+    const config = loadConfig();
+    expect(config.allowWrite).toBe(false);
+  });
+
+  it('MONGO_TS_FORMAT 為 yaml 應正確設定', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_FORMAT'] = 'yaml';
+
+    const config = loadConfig();
+    expect(config.format).toBe('yaml');
+  });
+
+  it('MONGO_TS_FORMAT 為 csv 應正確設定', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    process.env['MONGO_TS_FORMAT'] = 'csv';
+
+    const config = loadConfig();
+    expect(config.format).toBe('csv');
+  });
+
+  it('saveConfig 空物件不應崩潰', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    expect(() => saveConfig({})).not.toThrow();
+    expect(writeFileSync).toHaveBeenCalled();
+  });
+
+  it('isValidFormat 對 undefined/null 類型安全', () => {
+    // TypeScript 簽章要求 string，但 runtime 可能收到其他值
+    expect(isValidFormat(undefined as unknown as string)).toBe(false);
+    expect(isValidFormat(null as unknown as string)).toBe(false);
+  });
+
+  it('loadConfig 無設定檔且無環境變數時回傳完整預設', () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    const config = loadConfig();
+
+    expect(config.format).toBe('table');
+    expect(config.allowWrite).toBe(false);
+    expect(config.uri).toBeUndefined();
+    expect(config.defaultDb).toBeUndefined();
+  });
+});

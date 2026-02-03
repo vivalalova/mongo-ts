@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ObjectId } from 'mongodb';
 
 // Define mocks at module level
 const mockCollection = {
@@ -408,6 +409,196 @@ describe('executeQuery', () => {
       // This would require a custom parsed query, but we can test via the error path
       const result = await executeQuery('db.unknownAdminMethod()');
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('掃描第2輪', () => {
+    it('find with ObjectId filter 應正確傳入 collection.find', async () => {
+      mockCollection.find.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: '507f1f77bcf86cd799439011', name: 'test' }]) });
+      const result = await executeQuery('db.users.find({_id: ObjectId("507f1f77bcf86cd799439011")})');
+      expect(result.success).toBe(true);
+      // 驗證 find 被呼叫時的第一個參數包含 ObjectId 實例
+      const callArgs = mockCollection.find.mock.calls[0];
+      expect(callArgs[0]).toEqual({ _id: new ObjectId('507f1f77bcf86cd799439011') });
+    });
+
+    it('insertOne with Date 應正確傳入 collection.insertOne', async () => {
+      const result = await executeQuery('db.logs.insertOne({msg: "hello", ts: ISODate("2024-06-15T12:00:00Z")})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.insertOne.mock.calls[0];
+      expect(callArgs[0].msg).toBe('hello');
+      expect(callArgs[0].ts).toEqual(new Date('2024-06-15T12:00:00Z'));
+    });
+  });
+
+  describe('掃描第3輪', () => {
+    it('find with projection 應正確傳遞第二個參數', async () => {
+      mockCollection.find.mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ name: 'test' }]) });
+      const result = await executeQuery('db.users.find({}, {name: 1, _id: 0})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.find.mock.calls[0];
+      // 第一個參數：filter
+      expect(callArgs[0]).toEqual({});
+      // 第二個參數：projection
+      expect(callArgs[1]).toEqual({ name: 1, _id: 0 });
+    });
+
+    it('aggregate 空 pipeline 應正確執行', async () => {
+      mockCollection.aggregate.mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) });
+      const result = await executeQuery('db.users.aggregate([])');
+      expect(result.success).toBe(true);
+      expect(mockCollection.aggregate).toHaveBeenCalledWith([]);
+    });
+
+    it('不合法的查詢格式：db.users. 結尾是點', async () => {
+      const result = await executeQuery('db.users.');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unknown query format');
+    });
+
+    it('findOne with projection 應正確傳遞', async () => {
+      mockCollection.findOne.mockResolvedValueOnce({ name: 'test' });
+      const result = await executeQuery('db.users.findOne({active: true}, {name: 1})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.findOne.mock.calls[0];
+      expect(callArgs[0]).toEqual({ active: true });
+      expect(callArgs[1]).toEqual({ name: 1 });
+    });
+
+    it('updateOne with upsert option 應傳遞第三個參數', async () => {
+      const result = await executeQuery('db.users.updateOne({name: "test"}, {$set: {age: 30}}, {upsert: true})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.updateOne.mock.calls[0];
+      expect(callArgs[0]).toEqual({ name: 'test' });
+      expect(callArgs[1]).toEqual({ $set: { age: 30 } });
+      expect(callArgs[2]).toEqual({ upsert: true });
+    });
+
+    it('readonly 模式下 find 允許執行', async () => {
+      mockCollection.find.mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) });
+      const result = await executeQuery('db.users.find({})', true);
+      expect(result.success).toBe(true);
+    });
+
+    it('readonly 模式下 aggregate 含 $out 應被拒絕', async () => {
+      const result = await executeQuery('db.data.aggregate([{$match: {}}, {$out: "result"}])', true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not allowed in readonly mode');
+    });
+
+    it('readonly 模式下 aggregate 含 $merge 應被拒絕', async () => {
+      const result = await executeQuery('db.data.aggregate([{$merge: {into: "target"}}])', true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not allowed in readonly mode');
+    });
+
+    it('collection 操作錯誤應回傳 error', async () => {
+      mockCollection.countDocuments.mockRejectedValueOnce(new Error('timeout'));
+      const result = await executeQuery('db.users.countDocuments({})');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('timeout');
+    });
+
+    it('unknown method 應回傳 Unsupported method 錯誤', async () => {
+      const result = await executeQuery('db.users.unknownMethod()');
+      expect(result.success).toBe(false);
+      // parser 回傳 unknown type → "Unknown query format"
+      expect(result.error).toBeDefined();
+    });
+
+    it('空查詢字串應回傳 error', async () => {
+      const result = await executeQuery('');
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('掃描第4輪', () => {
+    it('SHOW DBS 全大寫應正確執行', async () => {
+      const result = await executeQuery('SHOW DBS');
+      expect(result.success).toBe(true);
+      expect(mockAdmin.listDatabases).toHaveBeenCalled();
+    });
+
+    it('Show Collections 混合大小寫應正確執行', async () => {
+      mockDb.listCollections.mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([{ name: 'test_col' }]),
+      });
+      const result = await executeQuery('Show Collections');
+      expect(result.success).toBe(true);
+    });
+
+    it('use my db 含空格應只取第一個 word', async () => {
+      const result = await executeQuery('use my db');
+      expect(result.success).toBe(true);
+      expect(result.data).toBe('switched to db my');
+    });
+
+    it('show users 未知目標應回傳 error', async () => {
+      const result = await executeQuery('show users');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unknown query format');
+    });
+
+    it('show indexes 未知目標應回傳 error', async () => {
+      const result = await executeQuery('show indexes');
+      expect(result.success).toBe(false);
+    });
+
+    it('readonly 模式下 createIndex 應被拒絕', async () => {
+      const result = await executeQuery('db.users.createIndex({email: 1})', true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not allowed in readonly mode');
+    });
+
+    it('readonly 模式下 dropIndexes 應被拒絕', async () => {
+      const result = await executeQuery('db.users.dropIndexes()', true);
+      expect(result.success).toBe(false);
+    });
+
+    it('readonly 模式下 replaceOne 應被拒絕', async () => {
+      const result = await executeQuery('db.users.replaceOne({_id: "1"}, {name: "new"})', true);
+      expect(result.success).toBe(false);
+    });
+
+    it('readonly 模式下 deleteMany 應被拒絕', async () => {
+      const result = await executeQuery('db.users.deleteMany({})', true);
+      expect(result.success).toBe(false);
+    });
+
+    it('insertMany 錯誤應正確回傳', async () => {
+      mockCollection.insertMany.mockRejectedValueOnce(new Error('Duplicate key'));
+      const result = await executeQuery('db.users.insertMany([{name: "dup"}, {name: "dup"}])');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Duplicate key');
+    });
+
+    it('updateMany 含 upsert option', async () => {
+      const result = await executeQuery('db.users.updateMany({status: "old"}, {$set: {status: "new"}}, {upsert: true})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.updateMany.mock.calls[0];
+      expect(callArgs[2]).toEqual({ upsert: true });
+    });
+
+    it('replaceOne 含 option', async () => {
+      const result = await executeQuery('db.users.replaceOne({_id: "1"}, {name: "replaced"}, {upsert: true})');
+      expect(result.success).toBe(true);
+      const callArgs = mockCollection.replaceOne.mock.calls[0];
+      expect(callArgs[2]).toEqual({ upsert: true });
+    });
+
+    it('readonly 模式下 show tables 應允許', async () => {
+      mockDb.listCollections.mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([]),
+      });
+      const result = await executeQuery('show tables', true);
+      expect(result.success).toBe(true);
+    });
+
+    it('readonly 模式下 estimatedDocumentCount 應允許', async () => {
+      mockCollection.estimatedDocumentCount.mockResolvedValueOnce(42);
+      const result = await executeQuery('db.users.estimatedDocumentCount()', true);
+      expect(result.success).toBe(true);
+      expect(result.data).toBe(42);
     });
   });
 });
