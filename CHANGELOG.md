@@ -1,3 +1,17 @@
+## [1.1.0](https://github.com/vivalalova/mongo-ts/compare/v1.0.1...v1.1.0) (2026-02-03)
+
+### Features
+
+* 重寫查詢解析器，支援原生 BSON 型別與複雜語法 ([9553c22](https://github.com/vivalalova/mongo-ts/commit/9553c228255abdf0bc01956a01a36066d330d240))
+
+### Documentation
+
+* 改用 npx 直接執行，移除 build 步驟 ([aaacc69](https://github.com/vivalalova/mongo-ts/commit/aaacc699d79258a7866114999df5cecc908da0ac))
+
+### Chores
+
+* 新增 Claude plugin 設定檔 ([274fbf2](https://github.com/vivalalova/mongo-ts/commit/274fbf276e941e2589e67843a20e76b8d8ecd27f))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
